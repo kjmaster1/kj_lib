@@ -117,7 +117,9 @@ export class Progress {
       const coords = GetEntityCoords(ped, true);
 
       for (const p of props) {
-        const hash = await this.loadModel(p.model);
+        await this.loadModel(p.model);
+        const hash = typeof p.model === 'string' ? GetHashKey(p.model) : p.model;
+
         const obj = CreateObject(hash, coords[0], coords[1], coords[2], true, true, true);
         AttachEntityToEntity(
           obj, ped, GetPedBoneIndex(ped, p.bone || 60309),

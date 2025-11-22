@@ -240,6 +240,10 @@ export class VehicleProperties {
 
     SetVehicleModKit(vehicle, 0);
 
+    if (props.wheels !== undefined) {
+      SetVehicleWheelType(vehicle, props.wheels);
+    }
+
     if (props.plate) SetVehicleNumberPlateText(vehicle, props.plate);
     if (props.plateIndex !== undefined) SetVehicleNumberPlateTextIndex(vehicle, props.plateIndex);
     if (props.bodyHealth !== undefined) SetVehicleBodyHealth(vehicle, props.bodyHealth + 0.0);
