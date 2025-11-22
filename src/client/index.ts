@@ -5,12 +5,14 @@ import {Streaming} from './streaming';
 import {BoxZone} from './zone';
 import {Progress} from './progress';
 import {Cache} from './cache';
+import {ZoneCreator} from "./zoneCreator";
 
 // Initialize Core Systems
 ClientRPC.init();
 Cache.init();
 Interface.init();
 Progress.init();
+ZoneCreator.init();
 
 Logger.info('kj_lib client loaded');
 

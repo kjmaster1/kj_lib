@@ -1,5 +1,6 @@
 import { ServerRPC } from './rpc';
 import { Logger } from '../common/logger';
+export * from './zoneCreator'
 
 // Initialize Core Systems
 ServerRPC.init();
