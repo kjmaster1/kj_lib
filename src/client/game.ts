@@ -6,7 +6,7 @@ export class Game {
   /**
    * Get the closest vehicle to the player or specified coords
    */
-  static getClosestVehicle(coords?: number[], maxDistance: number = 10, includePlayerVehicle: boolean = false): number | null {
+  static getClosestVehicle(coords?: number[], maxDistance: number = 10, includePlayerVehicle: boolean = false, filter?: (entity: number) => boolean): number | null {
     const pCoords = coords || Cache.coords;
     const vehicles = GetGamePool('CVehicle');
     let closestVeh: number | null = null;
@@ -16,6 +16,7 @@ export class Game {
 
     for (const vehicle of vehicles) {
       if (!includePlayerVehicle && playerVeh === vehicle) continue;
+      if (filter && !filter(vehicle)) continue;
 
       const vCoords = GetEntityCoords(vehicle, false);
       const dist = Utils.distance([pCoords[0], pCoords[1], pCoords[2]], [vCoords[0], vCoords[1], vCoords[2]]);
@@ -32,7 +33,7 @@ export class Game {
   /**
    * Get the closest ped to the player
    */
-  static getClosestPed(coords?: number[], maxDistance: number = 10): number | null {
+  static getClosestPed(coords?: number[], maxDistance: number = 10, filter?: (entity: number) => boolean): number | null {
     const pCoords = coords || Cache.coords;
     const peds = GetGamePool('CPed');
     let closestPed: number | null = null;
@@ -41,6 +42,7 @@ export class Game {
 
     for (const ped of peds) {
       if (ped === playerPed) continue; // Skip self
+      if (filter && !filter(ped)) continue;
 
       const pedCoords = GetEntityCoords(ped, false);
       const dist = Utils.distance([pCoords[0], pCoords[1], pCoords[2]], [pedCoords[0], pedCoords[1], pedCoords[2]]);
@@ -57,13 +59,14 @@ export class Game {
   /**
    * Get the closest object to the player
    */
-  static getClosestObject(coords?: number[], maxDistance: number = 10): number | null {
+  static getClosestObject(coords?: number[], maxDistance: number = 10, filter?: (entity: number) => boolean): number | null {
     const pCoords = coords || Cache.coords;
     const objects = GetGamePool('CObject');
     let closestObj: number | null = null;
     let closestDist = maxDistance;
 
     for (const obj of objects) {
+      if (filter && !filter(obj)) continue;
       const oCoords = GetEntityCoords(obj, false);
       const dist = Utils.distance([pCoords[0], pCoords[1], pCoords[2]], [oCoords[0], oCoords[1], oCoords[2]]);
 

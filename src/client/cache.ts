@@ -45,14 +45,22 @@ export class Cache {
   }
 
   private static updateSeat() {
-    if (!Cache.vehicle) return;
-    // Native logic to check max seats and loop to find current seat
-    // For brevity: -1 is driver, 0 is passenger, etc.
-    for (let i = -1; i < 6; i++) {
+    if (!Cache.vehicle) {
+      Cache.seat = false;
+      return;
+    }
+
+    const model = GetEntityModel(Cache.vehicle);
+    const seatCount = GetVehicleModelNumberOfSeats(model);
+
+    // Driver is -1. Passengers are 0 to (seatCount - 2).
+    // We loop from -1 up to seatCount - 2.
+    for (let i = -1; i < seatCount - 1; i++) {
       if (GetPedInVehicleSeat(Cache.vehicle, i) === Cache.ped) {
         Cache.seat = i;
-        break;
+        return;
       }
     }
+    Cache.seat = false;
   }
 }

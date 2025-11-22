@@ -77,4 +77,18 @@ export class Streaming {
     }
     return true;
   }
+
+  static async requestControl(entity: number, timeout: number = 2000): Promise<boolean> {
+    if (!DoesEntityExist(entity)) return false;
+    if (NetworkHasControlOfEntity(entity)) return true;
+
+    NetworkRequestControlOfEntity(entity);
+
+    const start = GetGameTimer();
+    while (!NetworkHasControlOfEntity(entity)) {
+      await wait(10);
+      if (GetGameTimer() - start > timeout) return false;
+    }
+    return true;
+  }
 }
