@@ -613,4 +613,15 @@ export class Interface {
     this.resetNuiFocus();
     SendNuiMessage(JSON.stringify({ action: 'openRadialMenu', data: false }));
   }
+
+  // ============================================
+  // CLIPBOARD
+  // ============================================
+
+  static copyToClipboard(text: string) {
+    SendNuiMessage(JSON.stringify({
+      action: 'copyToClipboard',
+      data: { content: text }
+    }));
+  }
 }
