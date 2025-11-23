@@ -1,6 +1,5 @@
-import { IDateInput } from '../../../../typings';
+import {FormValues, IDateInput} from '../../../../typings';
 import { Control, useController } from 'react-hook-form';
-import { FormValues } from '../../InputDialog';
 import { DatePicker, DateRangePicker } from '@mantine/dates';
 import LibIcon from '../../../../components/LibIcon';
 
@@ -12,7 +11,7 @@ interface Props {
 
 const DateField: React.FC<Props> = (props) => {
   const controller = useController({
-    name: `test.${props.index}.value`,
+    name: `rows.${props.index}.value`,
     control: props.control,
     rules: { required: props.row.required, min: props.row.min, max: props.row.max },
   });

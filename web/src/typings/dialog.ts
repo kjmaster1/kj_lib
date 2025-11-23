@@ -1,5 +1,9 @@
 import { IconProp } from '@fortawesome/fontawesome-svg-core';
 
+export interface FormValues {
+  rows: { value: any }[];
+}
+
 export interface InputProps {
   heading: string;
   rows: Array<IInput | ICheckbox | ISelect | INumber | ISlider | IColorInput | IDateInput | ITextarea | ITimeInput>;

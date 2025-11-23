@@ -1,11 +1,10 @@
-// web/src/features/notifications/components/NotificationItem.tsx
 import React from 'react';
 import { Toast } from 'react-hot-toast';
 import { Box, Group, Stack, Text, ThemeIcon, RingProgress, Center, createStyles } from '@mantine/core';
 import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import tinycolor from 'tinycolor2';
-import {NotificationProps} from "../../../typings";
+import { NotificationProps } from "../../../typings";
 import LibIcon from "../../../components/LibIcon";
 import MarkdownComponents from "../../../config/MarkdownComponents";
 
@@ -16,7 +15,7 @@ interface Props {
   data: NotificationProps;
 }
 
-const useStyles = createStyles((theme) => ({
+const useStyles = createStyles((theme, { duration, visible }: { duration: number; visible: boolean }) => ({
   container: {
     width: rem(300),
     backgroundColor: theme.colors.dark[6],
@@ -36,19 +35,25 @@ const useStyles = createStyles((theme) => ({
     fontSize: rem(13),
     color: theme.colors.dark[1],
     lineHeight: 1.4,
-    '& p': { margin: 0 }, // Reset markdown paragraph margins
+    '& p': { margin: 0 },
   },
+  // Fix TS2322: Move the RingProgress animation here using Mantine class logic
+  ringTimer: {
+    '& circle:last-of-type': {
+      strokeDasharray: '100, 100',
+      transition: `stroke-dashoffset ${duration}ms linear`,
+      strokeDashoffset: visible ? 0 : 100,
+    }
+  }
 }));
 
-// Resolve semantic types to colors
 const getThemeColor = (type?: string, explicitColor?: string) => {
   if (explicitColor) return tinycolor(explicitColor).toRgbString();
-
   switch (type) {
-    case 'error': return '#F03E3E'; // red.7
-    case 'success': return '#40C057'; // teal.6
-    case 'warning': return '#FAB005'; // yellow.6
-    default: return '#228BE6'; // blue.6
+    case 'error': return '#F03E3E';
+    case 'success': return '#40C057';
+    case 'warning': return '#FAB005';
+    default: return '#228BE6';
   }
 };
 
@@ -63,27 +68,24 @@ const getIcon = (type?: string, explicitIcon?: any) => {
 };
 
 const NotificationItem: React.FC<Props> = ({ t, data }) => {
-  const { classes } = useStyles();
+  // Pass dynamic values to styles to handle animation
+  const { classes } = useStyles({ duration: t.duration || 3000, visible: t.visible });
+
   const color = getThemeColor(data.type, data.iconColor);
   const icon = getIcon(data.type, data.icon);
   const showTimer = data.showDuration !== false;
-
-  // Animation variants based on toast position
   const isTop = t.position?.includes('top');
-  const initialY = isTop ? -50 : 50;
 
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: initialY, scale: 0.9 }}
+      initial={{ opacity: 0, y: isTop ? -50 : 50, scale: 0.9 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
       transition={{ type: 'spring', stiffness: 400, damping: 30 }}
     >
       <Box className={classes.container}>
         <Group noWrap spacing="sm" align="flex-start">
-
-          {/* Icon Section */}
           <div style={{ position: 'relative' }}>
             {showTimer ? (
               <RingProgress
@@ -91,15 +93,9 @@ const NotificationItem: React.FC<Props> = ({ t, data }) => {
                 thickness={3}
                 roundCaps
                 sections={[{ value: 100, color }]}
-                styles={{
-                  root: { transform: 'rotate(-90deg)' },
-                  // Simple CSS animation for the timer ring
-                  'svg > circle:last-of-type': {
-                    strokeDasharray: '100, 100',
-                    transition: `stroke-dashoffset ${t.duration}ms linear`,
-                    strokeDashoffset: t.visible ? 0 : 100, // Animate from empty to full or vice versa
-                  }
-                }}
+                // Fix TS2322: Use the class we generated instead of inline styles object
+                classNames={{ root: classes.ringTimer }}
+                styles={{ root: { transform: 'rotate(-90deg)' } }}
                 label={
                   <Center style={{ transform: 'rotate(90deg)' }}>
                     <LibIcon icon={icon} fixedWidth color={color} size="sm" animation={data.iconAnimation} />
@@ -113,7 +109,6 @@ const NotificationItem: React.FC<Props> = ({ t, data }) => {
             )}
           </div>
 
-          {/* Content Section */}
           <Stack spacing={4} sx={{ flex: 1 }}>
             {data.title && <Text className={classes.title}>{data.title}</Text>}
             {data.description && (
@@ -124,7 +119,6 @@ const NotificationItem: React.FC<Props> = ({ t, data }) => {
               </Box>
             )}
           </Stack>
-
         </Group>
       </Box>
     </motion.div>

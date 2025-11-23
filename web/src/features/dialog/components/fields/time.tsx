@@ -1,7 +1,6 @@
 import { TimeInput } from '@mantine/dates';
 import { Control, useController } from 'react-hook-form';
-import { ITimeInput } from '../../../../typings';
-import { FormValues } from '../../InputDialog';
+import {FormValues, ITimeInput} from '../../../../typings';
 import LibIcon from '../../../../components/LibIcon';
 
 interface Props {
@@ -12,7 +11,7 @@ interface Props {
 
 const TimeField: React.FC<Props> = (props) => {
   const controller = useController({
-    name: `test.${props.index}.value`,
+    name: `rows.${props.index}.value`,
     control: props.control,
     rules: { required: props.row.required },
   });

@@ -1,6 +1,6 @@
 // web/src/features/progress/components/CircularProgress.tsx
 import React, { useEffect } from 'react';
-import {Box, createStyles} from "@mantine/core";
+import {Box, Text, createStyles} from "@mantine/core";
 import {motion, animate, useMotionValue, useTransform} from "framer-motion";
 import {fetchNui} from "../../../utils/fetchNui";
 

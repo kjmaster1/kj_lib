@@ -34,7 +34,7 @@ class Nui {
    * @param action The specific action identifier for the React reducer/listener
    * @param data The payload
    */
-  static send<T = unknown>(action: string, data?: T): void {
+  static send<T = unknown>(action: NuiAction, data?: T): void {
     SendNuiMessage(JSON.stringify({ action, data }));
   }
 
@@ -50,6 +50,21 @@ class Nui {
 // =============================================================================
 // 2. Types & Interfaces (Domain Layer)
 // =============================================================================
+
+type NuiAction =
+  | 'sendAlert'
+  | 'openDialog'
+  | 'showContext'
+  | 'hideContext'
+  | 'setMenu'
+  | 'closeMenu'
+  | 'openRadialMenu'
+  | 'notify'
+  | 'textUi'
+  | 'textUiHide'
+  | 'copyToClipboard'
+  | 'startSkillCheck'
+  | 'skillCheckCancel';
 
 export type IconProp = string | [string, string];
 

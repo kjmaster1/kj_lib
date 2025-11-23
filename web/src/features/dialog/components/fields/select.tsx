@@ -1,7 +1,6 @@
 import { MultiSelect, Select } from '@mantine/core';
-import { ISelect } from '../../../../typings';
+import {FormValues, ISelect} from '../../../../typings';
 import { Control, useController } from 'react-hook-form';
-import { FormValues } from '../../InputDialog';
 import LibIcon from '../../../../components/LibIcon';
 
 interface Props {
@@ -12,7 +11,7 @@ interface Props {
 
 const SelectField: React.FC<Props> = (props) => {
   const controller = useController({
-    name: `test.${props.index}.value`,
+    name: `rows.${props.index}.value`,
     control: props.control,
     rules: { required: props.row.required },
   });

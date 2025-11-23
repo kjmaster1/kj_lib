@@ -1,7 +1,6 @@
 import { NumberInput } from '@mantine/core';
-import { INumber } from '../../../../typings/dialog';
+import {FormValues, INumber} from '../../../../typings/dialog';
 import { Control, useController } from 'react-hook-form';
-import { FormValues } from '../../InputDialog';
 import LibIcon from '../../../../components/LibIcon';
 
 interface Props {
@@ -12,7 +11,7 @@ interface Props {
 
 const NumberField: React.FC<Props> = (props) => {
   const controller = useController({
-    name: `test.${props.index}.value`,
+    name: `rows.${props.index}.value`,
     control: props.control,
     defaultValue: props.row.default,
     rules: { required: props.row.required, min: props.row.min, max: props.row.max },

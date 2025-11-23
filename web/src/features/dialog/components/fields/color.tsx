@@ -1,6 +1,5 @@
-import { IColorInput } from '../../../../typings';
+import {FormValues, IColorInput} from '../../../../typings';
 import { Control, useController } from 'react-hook-form';
-import { FormValues } from '../../InputDialog';
 import { ColorInput } from '@mantine/core';
 import LibIcon from '../../../../components/LibIcon';
 
@@ -12,7 +11,7 @@ interface Props {
 
 const ColorField: React.FC<Props> = (props) => {
   const controller = useController({
-    name: `test.${props.index}.value`,
+    name: `rows.${props.index}.value`,
     control: props.control,
     defaultValue: props.row.default,
     rules: { required: props.row.required },

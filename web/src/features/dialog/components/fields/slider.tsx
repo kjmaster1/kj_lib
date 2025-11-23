@@ -1,7 +1,6 @@
 import { Box, Slider, Text } from '@mantine/core';
-import { ISlider } from '../../../../typings/dialog';
+import {FormValues, ISlider} from '../../../../typings';
 import { Control, useController } from 'react-hook-form';
-import { FormValues } from '../../InputDialog';
 
 interface Props {
   row: ISlider;
@@ -11,7 +10,7 @@ interface Props {
 
 const SliderField: React.FC<Props> = (props) => {
   const controller = useController({
-    name: `test.${props.index}.value`,
+    name: `rows.${props.index}.value`,
     control: props.control,
     defaultValue: props.row.default || props.row.min || 0,
   });
