@@ -4,6 +4,7 @@ import { IconAnimation } from '../components/LibIcon';
 export interface Option {
   menu?: string;
   title?: string;
+  label?: string;
   description?: string;
   arrow?: boolean;
   image?: string;

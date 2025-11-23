@@ -1,6 +1,6 @@
 import { TimeInput } from '@mantine/dates';
 import { Control, useController } from 'react-hook-form';
-import { ITimeInput } from '../../../../typings/dialog';
+import { ITimeInput } from '../../../../typings';
 import { FormValues } from '../../InputDialog';
 import LibIcon from '../../../../components/LibIcon';
 

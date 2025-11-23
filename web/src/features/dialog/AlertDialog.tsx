@@ -1,89 +1,82 @@
-import { Button, createStyles, Group, Modal, Stack, useMantineTheme } from '@mantine/core';
-import { useState } from 'react';
+// web/src/features/dialog/AlertDialog.tsx
+import React, { useMemo } from 'react';
+import { Button, Group, Modal, Stack, useMantineTheme } from '@mantine/core';
 import ReactMarkdown from 'react-markdown';
-import { useNuiEvent } from '../../hooks/useNuiEvent';
+import remarkGfm from 'remark-gfm';
+import { useUiStore } from '../../store/uiStore'; // Use Store!
 import { fetchNui } from '../../utils/fetchNui';
 import { useLocales } from '../../providers/LocaleProvider';
-import remarkGfm from 'remark-gfm';
-import type { AlertProps } from '../../typings';
 import MarkdownComponents from '../../config/MarkdownComponents';
-
-const useStyles = createStyles((theme) => ({
-  contentStack: {
-    color: theme.colors.dark[2],
-  },
-}));
 
 const AlertDialog: React.FC = () => {
   const { locale } = useLocales();
-  const { classes } = useStyles();
   const theme = useMantineTheme();
-  const [opened, setOpened] = useState(false);
-  const [dialogData, setDialogData] = useState<AlertProps>({
-    header: '',
-    content: '',
-  });
+  // We use the same store mechanism. Assuming you added alertData to uiStore.
+  // If not, useUiStore needs: isAlertVisible, alertData, closeAlert
+  const { isAlertVisible, alertData, closeAlert } = useUiStore((state: any) => ({
+    isAlertVisible: state.isAlertVisible, // You'd need to add these to store
+    alertData: state.alertData,
+    closeAlert: state.closeAlert
+  }));
 
-  const closeAlert = (button: string) => {
-    setOpened(false);
-    fetchNui('closeAlert', button);
+  // Memoize markdown components to prevent re-renders
+  const markdownComponents = useMemo(() => ({
+    ...MarkdownComponents,
+    img: ({ ...props }: any) => <img style={{ maxWidth: '100%', maxHeight: '100%' }} {...props} />,
+  }), []);
+
+  const handleClose = (action: 'cancel' | 'confirm') => {
+    closeAlert();
+    void fetchNui('closeAlert', action);
   };
 
-  useNuiEvent('sendAlert', (data: AlertProps) => {
-    setDialogData(data);
-    setOpened(true);
-  });
-
-  useNuiEvent('closeAlertDialog', () => {
-    setOpened(false);
-  });
+  if (!alertData) return null;
 
   return (
-    <>
-      <Modal
-        opened={opened}
-        centered={dialogData.centered}
-        size={dialogData.size || 'md'}
-        overflow={dialogData.overflow ? 'inside' : 'outside'}
-        closeOnClickOutside={false}
-        onClose={() => {
-          setOpened(false);
-          closeAlert('cancel');
-        }}
-        withCloseButton={false}
-        overlayOpacity={0.5}
-        exitTransitionDuration={150}
-        transition="fade"
-        title={<ReactMarkdown components={MarkdownComponents}>{dialogData.header}</ReactMarkdown>}
-      >
-        <Stack className={classes.contentStack}>
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              ...MarkdownComponents,
-              img: ({ ...props }) => <img style={{ maxWidth: '100%', maxHeight: '100%' }} {...props} />,
-            }}
-          >
-            {dialogData.content}
+    <Modal
+      opened={isAlertVisible}
+      centered={alertData.centered}
+      size={alertData.size || 'md'}
+      overflow={alertData.overflow ? 'inside' : 'outside'}
+      closeOnClickOutside={false}
+      withCloseButton={false}
+      onClose={() => handleClose('cancel')}
+      overlayOpacity={0.5}
+      transition="fade"
+      exitTransitionDuration={150}
+      title={
+        <ReactMarkdown components={MarkdownComponents}>
+          {alertData.header}
+        </ReactMarkdown>
+      }
+    >
+      <Stack spacing="md">
+        <div style={{ color: theme.colors.dark[2], lineHeight: 1.5 }}>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+            {alertData.content}
           </ReactMarkdown>
-          <Group position="right" spacing={10}>
-            {dialogData.cancel && (
-              <Button uppercase variant="default" onClick={() => closeAlert('cancel')} mr={3}>
-                {dialogData.labels?.cancel || locale.ui.cancel}
-              </Button>
-            )}
+        </div>
+
+        <Group position="right" spacing={10}>
+          {alertData.cancel && (
             <Button
+              variant="default"
+              onClick={() => handleClose('cancel')}
               uppercase
-              variant={dialogData.cancel ? 'light' : 'default'}
-              color={dialogData.cancel ? theme.primaryColor : undefined}
-              onClick={() => closeAlert('confirm')}
             >
-              {dialogData.labels?.confirm || locale.ui.confirm}
+              {alertData.labels?.cancel || locale.ui.cancel}
             </Button>
-          </Group>
-        </Stack>
-      </Modal>
-    </>
+          )}
+          <Button
+            variant={alertData.cancel ? 'light' : 'filled'}
+            onClick={() => handleClose('confirm')}
+            uppercase
+          >
+            {alertData.labels?.confirm || locale.ui.confirm}
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
   );
 };
 

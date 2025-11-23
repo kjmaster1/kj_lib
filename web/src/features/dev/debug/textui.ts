@@ -1,8 +1,7 @@
-import { TextUiProps } from '../../../typings';
 import { debugData } from '../../../utils/debugData';
 
 export const debugTextUI = () => {
-  debugData<TextUiProps>([
+  debugData<any>([
     {
       action: 'textUi',
       data: {

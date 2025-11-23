@@ -1,80 +1,130 @@
+// web/src/features/textui/TextUI.tsx
 import React from 'react';
-import { useNuiEvent } from '../../hooks/useNuiEvent';
-import { Box, createStyles, Group } from '@mantine/core';
+import {Box, createStyles, Group, ThemeIcon} from '@mantine/core';
+import {AnimatePresence, motion} from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
-import ScaleFade from '../../transitions/ScaleFade';
-import remarkGfm from 'remark-gfm';
-import type { TextUiPosition, TextUiProps } from '../../typings';
-import MarkdownComponents from '../../config/MarkdownComponents';
+import {useUiStore} from '../../store/uiStore';
+import {useShallow} from 'zustand/react/shallow';
 import LibIcon from '../../components/LibIcon';
+import MarkdownComponents from '../../config/MarkdownComponents';
+import type {TextUiPosition} from '../../typings';
 
-const useStyles = createStyles((theme, params: { position?: TextUiPosition }) => ({
-  wrapper: {
-    height: '100%',
-    width: '100%',
-    position: 'absolute',
-    display: 'flex',
-    alignItems: 
-      params.position === 'top-center' ? 'baseline' :
-      params.position === 'bottom-center' ? 'flex-end' : 'center',
-    justifyContent: 
-      params.position === 'right-center' ? 'flex-end' :
-      params.position === 'left-center' ? 'flex-start' : 'center',
+const rem = (px: number) => `${px / 16}rem`;
+
+// 1. Layout Configuration Map
+// Defines CSS position and Animation origin for each position type
+const LAYOUT_CONFIG: Record<TextUiPosition, {
+  style: React.CSSProperties;
+  initial: object;
+  animate: object;
+  exit: object;
+}> = {
+  'right-center': {
+    style: {top: '50%', right: 20, transform: 'translateY(-50%)'},
+    initial: {x: 50, opacity: 0},
+    animate: {x: 0, opacity: 1},
+    exit: {x: 50, opacity: 0},
   },
+  'left-center': {
+    style: {top: '50%', left: 20, transform: 'translateY(-50%)'},
+    initial: {x: -50, opacity: 0},
+    animate: {x: 0, opacity: 1},
+    exit: {x: -50, opacity: 0},
+  },
+  'top-center': {
+    style: {top: 40, left: '50%', transform: 'translateX(-50%)'},
+    initial: {y: -50, opacity: 0},
+    animate: {y: 0, opacity: 1},
+    exit: {y: -50, opacity: 0},
+  },
+  'bottom-center': {
+    style: {bottom: 40, left: '50%', transform: 'translateX(-50%)'},
+    initial: {y: 50, opacity: 0},
+    animate: {y: 0, opacity: 1},
+    exit: {y: 50, opacity: 0},
+  },
+};
+
+const useStyles = createStyles((theme) => ({
   container: {
-    fontSize: 16,
-    padding: 12,
-    margin: 8,
+    position: 'absolute',
     backgroundColor: theme.colors.dark[6],
-    color: theme.colors.dark[0],
-    fontFamily: 'Roboto',
+    padding: `${rem(12)} ${rem(16)}`,
     borderRadius: theme.radius.sm,
-    boxShadow: theme.shadows.sm,
+    boxShadow: theme.shadows.md,
+    borderLeft: `4px solid ${theme.colors.blue[6]}`, // Accent bar
+    maxWidth: rem(400),
+    zIndex: 50, // Below modals (100+) but above game HUD
   },
+  text: {
+    color: theme.colors.gray[3],
+    fontSize: rem(15),
+    fontWeight: 500,
+    lineHeight: 1.3,
+    // Style markdown strong tags for keybinds (e.g. **E**)
+    '& strong': {
+      color: theme.white,
+      backgroundColor: theme.colors.dark[4],
+      padding: '2px 6px',
+      borderRadius: 4,
+      fontFamily: theme.fontFamilyMonospace,
+      fontWeight: 700,
+      fontSize: '0.9em',
+      boxShadow: '0 2px 0 rgba(0,0,0,0.2)', // Pseudo-3D key look
+    }
+  }
 }));
 
 const TextUI: React.FC = () => {
-  const [data, setData] = React.useState<TextUiProps>({
-    text: '',
-    position: 'right-center',
-  });
-  const [visible, setVisible] = React.useState(false);
-  const { classes } = useStyles({ position: data.position });
+  const {classes, theme} = useStyles();
 
-  useNuiEvent<TextUiProps>('textUi', (data) => {
-    if (!data.position) data.position = 'right-center'; // Default right position
-    setData(data);
-    setVisible(true);
-  });
+  // 2. Select State
+  const {visible, text, position, icon, iconColor} = useUiStore(
+    useShallow((state: any) => ({ // Assuming 'textUi' slice exists
+      visible: state.textUi.visible,
+      text: state.textUi.text,
+      position: state.textUi.position,
+      icon: state.textUi.icon,
+      iconColor: state.textUi.iconColor,
+    }))
+  );
 
-  useNuiEvent('textUiHide', () => setVisible(false));
+  const layout = LAYOUT_CONFIG[position] || LAYOUT_CONFIG['right-center'];
 
   return (
-    <>
-      <Box className={classes.wrapper}>
-        <ScaleFade visible={visible}>
-          <Box style={data.style} className={classes.container}>
-            <Group spacing={12}>
-              {data.icon && (
-                <LibIcon
-                  icon={data.icon}
-                  fixedWidth
+    <AnimatePresence>
+      {visible && (
+        <motion.div
+          style={{position: 'absolute', ...layout.style}}
+          initial={layout.initial}
+          animate={layout.animate}
+          exit={layout.exit}
+          transition={{type: 'spring', stiffness: 300, damping: 25}}
+        >
+          <Box className={classes.container}>
+            <Group noWrap spacing="sm">
+              {icon && (
+                <ThemeIcon
                   size="lg"
-                  animation={data.iconAnimation}
-                  style={{
-                    color: data.iconColor,
-                    alignSelf: !data.alignIcon || data.alignIcon === 'center' ? 'center' : 'start',
-                  }}
-                />
+                  radius="md"
+                  variant="light"
+                  color={iconColor ? undefined : 'blue'}
+                  sx={iconColor ? {color: iconColor, backgroundColor: 'rgba(255,255,255,0.1)'} : undefined}
+                >
+                  <LibIcon icon={icon} fixedWidth/>
+                </ThemeIcon>
               )}
-              <ReactMarkdown components={MarkdownComponents} remarkPlugins={[remarkGfm]}>
-                {data.text}
-              </ReactMarkdown>
+
+              <Box className={classes.text}>
+                <ReactMarkdown components={MarkdownComponents}>
+                  {text}
+                </ReactMarkdown>
+              </Box>
             </Group>
           </Box>
-        </ScaleFade>
-      </Box>
-    </>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };
 

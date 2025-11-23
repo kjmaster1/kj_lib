@@ -1,63 +1,50 @@
-import { createStyles, PasswordInput, TextInput } from '@mantine/core';
+// web/src/features/dialog/components/fields/input.tsx
 import React from 'react';
-import { IInput } from '../../../../typings/dialog';
-import { UseFormRegisterReturn } from 'react-hook-form';
+import { TextInput, PasswordInput, createStyles } from '@mantine/core';
+import { UseFormRegister } from 'react-hook-form';
+import { IInput } from '../../../../typings';
 import LibIcon from '../../../../components/LibIcon';
 
-interface Props {
-  register: UseFormRegisterReturn;
+interface InputFieldProps {
+  register: UseFormRegister<any>;
+  path: string; // The specific path for this field (e.g., "rows.0.value")
   row: IInput;
-  index: number;
 }
 
 const useStyles = createStyles((theme) => ({
   eyeIcon: {
     color: theme.colors.dark[2],
+    cursor: 'pointer',
   },
 }));
 
-const InputField: React.FC<Props> = (props) => {
+const InputField: React.FC<InputFieldProps> = ({ register, path, row }) => {
   const { classes } = useStyles();
 
+  // Choose the component type
+  const Component = row.password ? PasswordInput : TextInput;
+
   return (
-    <>
-      {!props.row.password ? (
-        <TextInput
-          {...props.register}
-          defaultValue={props.row.default}
-          label={props.row.label}
-          description={props.row.description}
-          icon={props.row.icon && <LibIcon icon={props.row.icon} fixedWidth />}
-          placeholder={props.row.placeholder}
-          minLength={props.row.min}
-          maxLength={props.row.max}
-          disabled={props.row.disabled}
-          withAsterisk={props.row.required}
+    <Component
+      {...register(path, { required: row.required })}
+      label={row.label}
+      description={row.description}
+      defaultValue={row.default} // Controlled by form.reset, but safe to keep
+      placeholder={row.placeholder}
+      minLength={row.min}
+      maxLength={row.max}
+      disabled={row.disabled}
+      withAsterisk={row.required}
+      icon={row.icon && <LibIcon icon={row.icon} fixedWidth />}
+      visibilityToggleIcon={row.password ? ({ reveal, size }) => (
+        <LibIcon
+          icon={reveal ? 'eye-slash' : 'eye'}
+          style={{ fontSize: size }}
+          className={classes.eyeIcon}
+          fixedWidth
         />
-      ) : (
-        <PasswordInput
-          {...props.register}
-          defaultValue={props.row.default}
-          label={props.row.label}
-          description={props.row.description}
-          icon={props.row.icon && <LibIcon icon={props.row.icon} fixedWidth />}
-          placeholder={props.row.placeholder}
-          minLength={props.row.min}
-          maxLength={props.row.max}
-          disabled={props.row.disabled}
-          withAsterisk={props.row.required}
-          visibilityToggleIcon={({ reveal, size }) => (
-            <LibIcon
-              icon={reveal ? 'eye-slash' : 'eye'}
-              fontSize={size}
-              cursor="pointer"
-              className={classes.eyeIcon}
-              fixedWidth
-            />
-          )}
-        />
-      )}
-    </>
+      ) : undefined}
+    />
   );
 };
 

@@ -1,38 +1,45 @@
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
-import './index.css';
-import App from './App';
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { library } from '@fortawesome/fontawesome-svg-core';
 import { fas } from '@fortawesome/free-solid-svg-icons';
 import { far } from '@fortawesome/free-regular-svg-icons';
 import { fab } from '@fortawesome/free-brands-svg-icons';
-import { library } from '@fortawesome/fontawesome-svg-core';
-import { isEnvBrowser } from './utils/misc';
-import LocaleProvider from './providers/LocaleProvider';
-import ConfigProvider from './providers/ConfigProvider';
+import App from './App';
 import ErrorBoundary from './providers/errorBoundary';
+import { isEnvBrowser } from './utils/misc';
+import './index.css';
 
+// 1. Icon Library Configuration
+// We load all icons to support dynamic usage from Lua scripts.
+// In a stricter app, we would only import used icons to save bundle size.
 library.add(fas, far, fab);
 
+// 2. Development Environment Setup
 if (isEnvBrowser()) {
   const root = document.getElementById('root');
-
-  // https://i.imgur.com/iPTAdYV.png - Night time img
-  root!.style.backgroundImage = 'url("https://i.imgur.com/3pzRj9n.png")';
-  root!.style.backgroundSize = 'cover';
-  root!.style.backgroundRepeat = 'no-repeat';
-  root!.style.backgroundPosition = 'center';
+  if (root) {
+    // Apply a background to simulate the game environment in browser
+    Object.assign(root.style, {
+      backgroundImage: 'url("https://i.imgur.com/3pzRj9n.png")',
+      backgroundSize: 'cover',
+      backgroundRepeat: 'no-repeat',
+      backgroundPosition: 'center',
+    });
+  }
 }
 
-const root = document.getElementById('root');
+// 3. Application Mounting
+const rootElement = document.getElementById('root');
 
-createRoot(root!).render(
-  <StrictMode>
-    <LocaleProvider>
-      <ConfigProvider>
-        <ErrorBoundary>
-          <App />
-        </ErrorBoundary>
-      </ConfigProvider>
-    </LocaleProvider>
-  </StrictMode>
+if (!rootElement) {
+  throw new Error('Root element not found. Check index.html');
+}
+
+ReactDOM.createRoot(rootElement).render(
+  <React.StrictMode>
+    {/* ErrorBoundary remains at the top to catch crashes in App composition */}
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  </React.StrictMode>
 );
