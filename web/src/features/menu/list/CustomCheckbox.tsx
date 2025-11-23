@@ -1,3 +1,5 @@
+//
+import React from 'react';
 import { Checkbox, createStyles } from '@mantine/core';
 
 const useStyles = createStyles((theme) => ({
@@ -7,7 +9,12 @@ const useStyles = createStyles((theme) => ({
   },
   input: {
     backgroundColor: theme.colors.dark[7],
-    '&:checked': { backgroundColor: theme.colors.dark[2], borderColor: theme.colors.dark[2] },
+    borderColor: theme.colors.dark[4],
+    cursor: 'pointer',
+    '&:checked': {
+      backgroundColor: theme.colors.dark[2],
+      borderColor: theme.colors.dark[2],
+    },
   },
   inner: {
     '> svg > path': {
@@ -21,8 +28,10 @@ const CustomCheckbox: React.FC<{ checked: boolean }> = ({ checked }) => {
   return (
     <Checkbox
       checked={checked}
+      readOnly // FIXED: Suppress React warning since this is controlled by parent/keyboard
       size="md"
       classNames={{ root: classes.root, input: classes.input, inner: classes.inner }}
+      tabIndex={-1} // Prevent focus stealing
     />
   );
 };

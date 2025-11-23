@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
+//
+import React, { useState } from 'react';
 import { Box, Transition, createStyles } from '@mantine/core';
-import { useUiStore } from '../../../store/uiStore';
+import { useUiStore, UiState } from '../../../store/uiStore';
 import { fetchNui } from '../../../utils/fetchNui';
 import RadialItem from './components/RadialItem';
 import { useShallow } from 'zustand/react/shallow';
+import { RadialMenuItem } from '../../../typings';
 
 const useStyles = createStyles((theme) => ({
   overlay: {
@@ -15,7 +17,7 @@ const useStyles = createStyles((theme) => ({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.4)', // Dim background
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
     zIndex: 999,
   },
   centerPoint: {
@@ -25,6 +27,7 @@ const useStyles = createStyles((theme) => ({
     borderRadius: '50%',
     position: 'absolute',
     opacity: 0.5,
+    pointerEvents: 'none', // Ensure center point doesn't block clicks
   },
 }));
 
@@ -32,44 +35,43 @@ const RadialMenu: React.FC = () => {
   const { classes } = useStyles();
 
   // 1. Store Selection
-  const { visible, items, menuId, closeRadial } = useUiStore(useShallow(state => ({
-    visible: state.radial.visible,
-    items: state.radial.items,
-    menuId: state.radial.id,
-    closeRadial: state.closeRadial // Assuming this action exists in store
-  })));
+  const { visible, items, menuId, closeRadial } = useUiStore(
+    useShallow((state: UiState) => ({
+      visible: state.radial.visible,
+      items: state.radial.items,
+      menuId: state.radial.id,
+      closeRadial: state.radial.closeRadial,
+    }))
+  );
 
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
-  // 2. Handle Selection Logic
-  const handleSelect = (index: number) => {
-    setActiveIndex(index);
+  // 2. Handle Action Logic
+  const handleItemClick = (item: RadialMenuItem) => {
+    // Send NUI event
+    void fetchNui('radialClick', { itemId: item.id, menuId });
+
+    // Close unless specified otherwise
+    if (!item.keepOpen) {
+      closeRadial();
+      // Reset active index on close
+      setActiveIndex(null);
+    }
   };
 
-  const confirmSelection = () => {
-    if (activeIndex !== null && items[activeIndex]) {
-      const item = items[activeIndex];
-      fetchNui('radialClick', { itemId: item.id, menuId });
-
-      // Optimistic close if we assume action will close it
-      if (!item.keepOpen) closeRadial();
-    } else {
-      closeRadial(); // Clicked center/nothing
-      fetchNui('radialClose');
-    }
+  const handleBackgroundClick = () => {
+    closeRadial();
+    void fetchNui('radialClose');
     setActiveIndex(null);
   };
-
-  // 3. Mouse/Keyboard Interaction
-  // (Simplified for brevity: In production, add MouseMove angle calculation here
-  // to select items by just moving mouse towards them)
 
   if (!visible) return null;
 
   return (
     <Transition mounted={visible} transition="fade" duration={150}>
       {(styles) => (
-        <Box className={classes.overlay} style={styles} onClick={confirmSelection}>
+        // Background Click closes the menu
+        <Box className={classes.overlay} style={styles} onClick={handleBackgroundClick}>
           <div className={classes.centerPoint} />
 
           {items.map((item, index) => (
@@ -78,12 +80,12 @@ const RadialMenu: React.FC = () => {
               item={item}
               index={index}
               total={items.length}
-              radius={180} // Configurable radius
+              radius={220} // Increased radius for better spacing
               isActive={activeIndex === index}
-              onSelect={(e) => {
-                e.stopPropagation(); // Prevent immediate close
-                handleSelect(index);
-              }}
+              // Highlight on hover
+              onHover={() => setActiveIndex(index)}
+              // Execute on click
+              onClick={() => handleItemClick(item)}
             />
           ))}
         </Box>

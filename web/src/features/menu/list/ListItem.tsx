@@ -1,3 +1,4 @@
+//
 import React, { useMemo } from 'react';
 import { Box, Group, Progress, Stack, Text, createStyles } from '@mantine/core';
 import { IconProp } from '@fortawesome/fontawesome-svg-core';
@@ -8,13 +9,10 @@ import { isIconUrl } from '../../../utils/isIconUrl';
 
 const rem = (px: number) => `${px / 16}rem`;
 
-// Define the Props to match your new ListMenu usage
 interface ListItemProps {
   item: MenuItem;
   active: boolean;
-  // Optional: These might not be passed for simple items, so we mark them optional
-  scrollIndex?: number;
-  checked?: boolean;
+  scrollIndex?: number; // Used for list/slider items
 }
 
 const useStyles = createStyles((theme, params: { active: boolean; iconColor?: string }) => ({
@@ -24,7 +22,6 @@ const useStyles = createStyles((theme, params: { active: boolean; iconColor?: st
     padding: rem(2),
     height: rem(60),
     transition: 'background-color 0.1s ease',
-    // We remove the :focus styles because 'active' prop now handles it
   },
   wrapper: {
     paddingLeft: rem(5),
@@ -64,13 +61,15 @@ const useStyles = createStyles((theme, params: { active: boolean; iconColor?: st
   },
 }));
 
-const ListItem: React.FC<ListItemProps> = ({ item, active, scrollIndex = 0, checked = false }) => {
+const ListItem: React.FC<ListItemProps> = ({ item, active, scrollIndex = 0 }) => {
   const { classes } = useStyles({ active, iconColor: item.iconColor });
 
   // Helper to render the specific value of a list item (slider)
   const renderValue = useMemo(() => {
     if (!item.values || item.values.length === 0) return null;
-    const current = item.values[scrollIndex];
+    // Use the provided scrollIndex (managed by parent hook) or fallback to defaultIndex
+    const effectiveIndex = scrollIndex;
+    const current = item.values[effectiveIndex];
     if (typeof current === 'string') return current;
     return current?.label || 'Unknown';
   }, [item.values, scrollIndex]);
@@ -118,7 +117,8 @@ const ListItem: React.FC<ListItemProps> = ({ item, active, scrollIndex = 0, chec
             item.checked !== undefined ? (
                 <Group position="apart" w="100%">
                   <Text className={classes.label}>{item.label}</Text>
-                  <CustomCheckbox checked={checked} />
+                  {/* FIXED: Pass item.checked directly */}
+                  <CustomCheckbox checked={item.checked} />
                 </Group>
               ) :
 

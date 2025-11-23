@@ -1,3 +1,4 @@
+//
 import { Component, ReactNode, ErrorInfo } from 'react';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
@@ -11,11 +12,14 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error(error, info)
-    this.setState({ hasError: false });
+    // Log the error so you can see it in the console
+    console.error("ErrorBoundary caught an error:", error, info);
+    // Do NOT reset state here; let the UI show the fallback or null
   }
 
   render() {
+    // If an error occurred, render nothing (or a fallback UI)
+    // rendering this.props.children again would just crash the app again
     return this.state.hasError ? null : this.props.children;
   }
 }

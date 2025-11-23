@@ -1,9 +1,10 @@
-// web/src/features/dialog/AlertDialog.tsx
+//
 import React, { useMemo } from 'react';
 import { Button, Group, Modal, Stack, useMantineTheme } from '@mantine/core';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useUiStore } from '../../store/uiStore'; // Use Store!
+import { useShallow } from 'zustand/react/shallow';
+import { useUiStore, UiState } from '../../store/uiStore';
 import { fetchNui } from '../../utils/fetchNui';
 import { useLocales } from '../../providers/LocaleProvider';
 import MarkdownComponents from '../../config/MarkdownComponents';
@@ -11,13 +12,14 @@ import MarkdownComponents from '../../config/MarkdownComponents';
 const AlertDialog: React.FC = () => {
   const { locale } = useLocales();
   const theme = useMantineTheme();
-  // We use the same store mechanism. Assuming you added alertData to uiStore.
-  // If not, useUiStore needs: isAlertVisible, alertData, closeAlert
-  const { isAlertVisible, alertData, closeAlert } = useUiStore((state: any) => ({
-    isAlertVisible: state.isAlertVisible, // You'd need to add these to store
-    alertData: state.alertData,
-    closeAlert: state.closeAlert
-  }));
+
+  const { isAlertVisible, alertData, closeAlert } = useUiStore(
+    useShallow((state: UiState) => ({
+      isAlertVisible: state.alert.visible,
+      alertData: state.alert.data,
+      closeAlert: state.alert.closeAlert,
+    }))
+  );
 
   // Memoize markdown components to prevent re-renders
   const markdownComponents = useMemo(() => ({

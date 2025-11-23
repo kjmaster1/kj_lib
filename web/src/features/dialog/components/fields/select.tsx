@@ -1,5 +1,7 @@
+//
+import React from 'react';
 import { MultiSelect, Select } from '@mantine/core';
-import {FormValues, ISelect} from '../../../../typings';
+import { FormValues, ISelect } from '../../../../typings';
 import { Control, useController } from 'react-hook-form';
 import LibIcon from '../../../../components/LibIcon';
 
@@ -10,10 +12,14 @@ interface Props {
 }
 
 const SelectField: React.FC<Props> = (props) => {
+  // Determine a safe default value based on the component type
+  const safeDefault = props.row.type === 'multi-select' ? [] : '';
+
   const controller = useController({
     name: `rows.${props.index}.value`,
     control: props.control,
     rules: { required: props.row.required },
+    defaultValue: props.row.default ?? safeDefault,
   });
 
   return (
@@ -21,7 +27,7 @@ const SelectField: React.FC<Props> = (props) => {
       {props.row.type === 'select' ? (
         <Select
           data={props.row.options}
-          value={controller.field.value}
+          value={controller.field.value ?? ''}
           name={controller.field.name}
           ref={controller.field.ref}
           onBlur={controller.field.onBlur}
@@ -39,7 +45,7 @@ const SelectField: React.FC<Props> = (props) => {
           {props.row.type === 'multi-select' && (
             <MultiSelect
               data={props.row.options}
-              value={controller.field.value}
+              value={controller.field.value ?? []}
               name={controller.field.name}
               ref={controller.field.ref}
               onBlur={controller.field.onBlur}

@@ -1,3 +1,4 @@
+//
 import { isEnvBrowser } from './misc';
 
 interface DebugEvent<T = any> {
@@ -22,6 +23,7 @@ export const debugData = <P>(events: DebugEvent<P>[], timer = 1000): void => {
               action: event.action,
               data: event.data,
             },
+            source: window,
           })
         );
       }, timer);

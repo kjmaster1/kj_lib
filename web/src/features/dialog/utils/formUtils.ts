@@ -1,11 +1,11 @@
-// web/src/features/dialog/utils/formUtils.ts
+//
 import dayjs from 'dayjs';
 
 export const prepareFormValues = (rows: any[]) => {
   return rows.map((row) => {
     let value = row.default;
 
-    // Handle Dates
+    // Handle Dates (Priority over standard defaults)
     if (row.type === 'date' || row.type === 'date-range' || row.type === 'time') {
       if (row.default === true) {
         value = new Date().getTime();
@@ -16,8 +16,25 @@ export const prepareFormValues = (rows: any[]) => {
       }
     }
 
-    // Handle Select Object vs String normalization if needed
-    // (Logic moved from original component)
+    // Fix: Provide default values to prevent uncontrolled inputs if 'default' is missing
+    // We check for undefined OR null to be safe, though undefined is the main culprit.
+    if (value === undefined || value === null) {
+      switch (row.type) {
+        case 'checkbox':
+          value = false;
+          break;
+        case 'multi-select':
+          value = [];
+          break;
+        case 'number':
+        case 'slider':
+          value = row.min ?? 0;
+          break;
+        default:
+          value = ''; // Selects, inputs, textareas, etc.
+          break;
+      }
+    }
 
     return { value };
   });

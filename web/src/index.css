@@ -26,7 +26,16 @@
 html, body, #root {
   height: 100%;
   width: 100%;
-  overflow: hidden !important; /* Prevent scrolling on the NUI frame itself */
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* Essential for NUI to prevent game scrollbars */
+}
+
+#root {
+  /* Ensures the root acts as a proper container for your absolute elements */
+  position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 body {

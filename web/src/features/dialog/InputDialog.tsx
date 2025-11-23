@@ -1,44 +1,45 @@
-import React, { useEffect } from 'react';
+//
+import React, { useMemo } from 'react';
 import { Button, Group, Modal, Stack } from '@mantine/core';
 import { useForm, useFieldArray } from 'react-hook-form';
-import { useUiStore } from '../../store/uiStore';
+import { useShallow } from 'zustand/react/shallow';
+import { useUiStore, UiState } from '../../store/uiStore';
 import { fetchNui } from '../../utils/fetchNui';
 import { useLocales } from '../../providers/LocaleProvider';
 import { getFieldComponent } from './components/FieldRegistry';
 import { prepareFormValues, formatSubmissionValues } from './utils/formUtils';
-import type { InputProps, FormValues } from '../../typings'; // Ensure type import
+import type { InputProps, FormValues } from '../../typings';
 
 const InputDialog: React.FC = () => {
   const { locale } = useLocales();
-  const { input } = useUiStore();
+
+  // Select only the input slice to prevent unnecessary re-renders
+  const input = useUiStore(useShallow((state: UiState) => state.input));
+
+  // FIXED: Calculate form values immediately.
+  // This prevents the "undefined" gap between mount and useEffect which causes "uncontrolled" warnings.
+  const currentRows = useMemo(() => {
+    return input.data ? prepareFormValues(input.data.rows) : [];
+  }, [input.data]);
 
   const form = useForm<FormValues>({
-    defaultValues: { rows: [] }
+    defaultValues: { rows: [] },
+    values: { rows: currentRows }, // RHF v7: Automatically updates form when this changes
+    resetOptions: {
+      keepDirty: false, // Ensure we overwrite with new data when opening a new dialog
+    }
   });
 
-  const { control, register, handleSubmit, reset } = form;
+  const { control, register, handleSubmit } = form;
 
-  // Fix: Explicitly type fieldArray to avoid 'never' issues
   useFieldArray({
     control,
     name: 'rows',
   });
 
-  // 1. Reset Form when Modal Opens
-  useEffect(() => {
-    if (input.visible && input.data) {
-      const initialRows = prepareFormValues(input.data.rows);
-      // Reset only when data actually changes
-      reset({ rows: initialRows });
-    }
-  }, [input.visible, input.data, reset]);
-
-  // 2. Handle Submit
   const onSubmit = handleSubmit((data) => {
     if (!input.data) return;
-
     const values = formatSubmissionValues(data.rows, input.data.rows);
-
     void fetchNui('inputData', values);
     input.closeInput();
   });
@@ -71,7 +72,6 @@ const InputDialog: React.FC = () => {
         <Stack spacing="sm">
           {rows.map((row, index) => {
             const Component = getFieldComponent(row.type);
-
             return (
               <Component
                 key={index}

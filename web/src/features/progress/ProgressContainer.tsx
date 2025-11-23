@@ -15,7 +15,7 @@ const ProgressContainer: React.FC = () => {
       duration: state.progress.duration,
       position: state.progress.position,
       showPercentage: state.progress.showPercentage,
-      closeProgress: state.closeProgress,
+      closeProgress: state.progress.closeProgress,
     }))
   );
 

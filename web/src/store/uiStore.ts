@@ -1,5 +1,6 @@
-import {create} from 'zustand';
-import {devtools} from 'zustand/middleware';
+//
+import { create } from 'zustand';
+import { devtools } from 'zustand/middleware';
 import type {
   AlertProps,
   ContextMenuProps,
@@ -9,7 +10,7 @@ import type {
   ProgressState,
   RadialMenuItem,
   TextUiPayload,
-  TextUiState
+  TextUiState,
 } from '../typings';
 
 // -----------------------------------------------------------------------------
@@ -56,7 +57,8 @@ interface SkillCheckSlice {
   visible: boolean;
   difficultyChain: GameDifficulty[];
   activeIndex: number;
-  startSkillCheck: (difficulty: GameDifficulty | GameDifficulty[]) => void;
+  inputs: string[]; // Added: Store allowed input keys
+  startSkillCheck: (difficulty: GameDifficulty | GameDifficulty[], inputs?: string[]) => void; // Updated signature
   incrementSkillCheck: () => void;
   closeSkillCheck: () => void;
 }
@@ -108,9 +110,9 @@ export const useUiStore = create<UiState>()(
       visible: false,
       data: null,
       setMenu: (data) =>
-        set((state) => ({menu: {...state.menu, visible: true, data}}), false, 'menu/set'),
+        set((state) => ({ menu: { ...state.menu, visible: true, data } }), false, 'menu/set'),
       closeMenu: () =>
-        set((state) => ({menu: {...state.menu, visible: false, data: null}}), false, 'menu/close'),
+        set((state) => ({ menu: { ...state.menu, visible: false, data: null } }), false, 'menu/close'),
     },
 
     // --- Input (Dialog) ---
@@ -118,9 +120,9 @@ export const useUiStore = create<UiState>()(
       visible: false,
       data: null,
       openInput: (data) =>
-        set((state) => ({input: {...state.input, visible: true, data}}), false, 'input/open'),
+        set((state) => ({ input: { ...state.input, visible: true, data } }), false, 'input/open'),
       closeInput: () =>
-        set((state) => ({input: {...state.input, visible: false, data: null}}), false, 'input/close'),
+        set((state) => ({ input: { ...state.input, visible: false, data: null } }), false, 'input/close'),
     },
 
     // --- Alert ---
@@ -128,9 +130,9 @@ export const useUiStore = create<UiState>()(
       visible: false,
       data: null,
       openAlert: (data) =>
-        set((state) => ({alert: {...state.alert, visible: true, data}}), false, 'alert/open'),
+        set((state) => ({ alert: { ...state.alert, visible: true, data } }), false, 'alert/open'),
       closeAlert: () =>
-        set((state) => ({alert: {...state.alert, visible: false, data: null}}), false, 'alert/close'),
+        set((state) => ({ alert: { ...state.alert, visible: false, data: null } }), false, 'alert/close'),
     },
 
     // --- Context Menu ---
@@ -138,9 +140,9 @@ export const useUiStore = create<UiState>()(
       visible: false,
       menu: null,
       openContext: (menu) =>
-        set((state) => ({context: {...state.context, visible: true, menu}}), false, 'context/open'),
+        set((state) => ({ context: { ...state.context, visible: true, menu } }), false, 'context/open'),
       closeContext: () =>
-        set((state) => ({context: {...state.context, visible: false, menu: null}}), false, 'context/close'),
+        set((state) => ({ context: { ...state.context, visible: false, menu: null } }), false, 'context/close'),
     },
 
     // --- Radial Menu ---
@@ -149,9 +151,9 @@ export const useUiStore = create<UiState>()(
       items: [],
       id: '',
       openRadial: (id, items) =>
-        set((state) => ({radial: {...state.radial, visible: true, id, items}}), false, 'radial/open'),
+        set((state) => ({ radial: { ...state.radial, visible: true, id, items } }), false, 'radial/open'),
       closeRadial: () =>
-        set((state) => ({radial: {...state.radial, visible: false}}), false, 'radial/close'),
+        set((state) => ({ radial: { ...state.radial, visible: false } }), false, 'radial/close'),
     },
 
     // --- Skill Check ---
@@ -159,7 +161,8 @@ export const useUiStore = create<UiState>()(
       visible: false,
       difficultyChain: [],
       activeIndex: 0,
-      startSkillCheck: (difficulty) =>
+      inputs: ['e'], // Default input
+      startSkillCheck: (difficulty, inputs) =>
         set(
           (state) => ({
             skillCheck: {
@@ -167,6 +170,7 @@ export const useUiStore = create<UiState>()(
               visible: true,
               activeIndex: 0,
               difficultyChain: Array.isArray(difficulty) ? difficulty : [difficulty],
+              inputs: inputs || ['e'], // Store provided inputs or default to 'e'
             },
           }),
           false,
@@ -175,14 +179,14 @@ export const useUiStore = create<UiState>()(
       incrementSkillCheck: () =>
         set(
           (state) => ({
-            skillCheck: {...state.skillCheck, activeIndex: state.skillCheck.activeIndex + 1},
+            skillCheck: { ...state.skillCheck, activeIndex: state.skillCheck.activeIndex + 1 },
           }),
           false,
           'skillCheck/increment'
         ),
       closeSkillCheck: () =>
         set(
-          (state) => ({skillCheck: {...state.skillCheck, visible: false, difficultyChain: []}}),
+          (state) => ({ skillCheck: { ...state.skillCheck, visible: false, difficultyChain: [], inputs: ['e'] } }),
           false,
           'skillCheck/close'
         ),
@@ -199,13 +203,13 @@ export const useUiStore = create<UiState>()(
       setProgress: (data) =>
         set(
           (state) => ({
-            progress: {...state.progress, ...data, visible: true},
+            progress: { ...state.progress, ...data, visible: true },
           }),
           false,
           'progress/set'
         ),
       closeProgress: () =>
-        set((state) => ({progress: {...state.progress, visible: false}}), false, 'progress/close'),
+        set((state) => ({ progress: { ...state.progress, visible: false } }), false, 'progress/close'),
     },
 
     // --- TextUI ---
@@ -231,7 +235,7 @@ export const useUiStore = create<UiState>()(
           'textUi/set'
         ),
       hideTextUi: () =>
-        set((state) => ({textUi: {...state.textUi, visible: false}}), false, 'textUi/hide'),
+        set((state) => ({ textUi: { ...state.textUi, visible: false } }), false, 'textUi/hide'),
     },
   }))
 );

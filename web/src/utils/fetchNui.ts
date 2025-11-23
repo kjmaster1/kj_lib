@@ -1,3 +1,6 @@
+//
+import {isEnvBrowser} from './misc';
+
 /**
  * Simple wrapper around fetch API tailored for CEF/NUI use. This abstraction
  * can be extended to include AbortController if needed or if the response isn't
@@ -9,11 +12,17 @@
  * @return returnData - A promise for the data sent back by the NuiCallbacks CB argument
  */
 
-const fetch = window.fetch;
-// @ts-expect-error
-window.fetch = () => {};
-// @ts-expect-error
-window.XMLHttpRequest = window.fetch;
+// Capture the native fetch implementation for use in fetchNui
+const resourceFetch = window.fetch;
+
+// Only block browser fetch/XHR in the game environment.
+// Vite needs these to function in the browser development environment.
+if (!isEnvBrowser()) {
+  // @ts-expect-error
+  window.fetch = () => {};
+  // @ts-expect-error
+  window.XMLHttpRequest = window.fetch;
+}
 
 export async function fetchNui<T = any>(eventName: string, data?: any): Promise<T> {
   const options = {
@@ -24,12 +33,16 @@ export async function fetchNui<T = any>(eventName: string, data?: any): Promise<
     body: JSON.stringify(data),
   };
 
+  if (isEnvBrowser()) {
+    console.log(`[NUI] Mock Fetch: ${eventName}`, data);
+    return Promise.resolve({} as T);
+  }
+
   const resourceName = (window as any).GetParentResourceName
     ? (window as any).GetParentResourceName()
     : 'nui-frame-app';
 
-  const resp = await fetch(`https://${resourceName}/${eventName}`, options);
-  const respFormatted = await resp.json();
-
-  return respFormatted;
+  // Use the captured resourceFetch instead of the potentially overridden global fetch
+  const resp = await resourceFetch(`https://${resourceName}/${eventName}`, options);
+  return await resp.json();
 }
