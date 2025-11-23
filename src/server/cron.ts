@@ -1,155 +1,194 @@
-import { Logger } from '../common/logger';
+// src/server/cron.ts
+import {Logger} from '../common';
 
-interface CronJob {
-  id: number;
+// -----------------------------------------------------------------------------
+// Types
+// -----------------------------------------------------------------------------
+
+export interface CronTask {
+  id: string;
   expression: string;
-  nextScheduledTime: number;
-  job: () => void;
-  isActive: boolean;
+  parsed: ParsedExpression;
+  handler: () => void;
+  stop: () => void;
 }
 
 interface ParsedExpression {
-  minute: number[] | 'all';
-  hour: number[] | 'all';
-  dayOfMonth: number[] | 'all';
-  month: number[] | 'all';
-  dayOfWeek: number[] | 'all';
+  minutes: Set<number> | 'all';
+  hours: Set<number> | 'all';
+  daysOfMonth: Set<number> | 'all';
+  months: Set<number> | 'all';
+  daysOfWeek: Set<number> | 'all';
 }
 
-export class Cron {
-  private static jobs: CronJob[] = [];
-  private static tick: number | null = null;
+// -----------------------------------------------------------------------------
+// Implementation
+// -----------------------------------------------------------------------------
 
-  /**
-   * Initialize the Cron ticker
-   */
-  static init() {
-    if (this.tick) return;
+export class CronManager {
+  private static instance: CronManager;
+  private jobs: Map<string, CronTask> = new Map();
+  private timer: NodeJS.Timeout | null = null;
+  private active: boolean = false;
 
-    // Check every minute (60000ms)
-    // We use a slight offset to ensure we don't skip a minute due to lag
-    this.tick = setInterval(() => {
-      this.processJobs();
-    }, 2000) as unknown as number;
-
-    Logger.info('Cron system initialized');
+  private constructor() {
+    this.startScheduler();
   }
 
-  /**
-   * Register a new Cron Job
-   * @param expression Cron expression (e.g., '5 0 * * *')
-   * @param job Callback function
-   */
-  static new(expression: string, job: () => void): CronJob {
-    const parsed = this.parseExpression(expression);
+  public static getInstance(): CronManager {
+    if (!this.instance) {
+      this.instance = new CronManager();
+    }
+    return this.instance;
+  }
 
-    const task: CronJob = {
-      id: this.jobs.length + 1,
+  public schedule(expression: string, handler: () => void): CronTask {
+    const parsed = this.parse(expression);
+    const id = `cron_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+
+    const task: CronTask = {
+      id,
       expression,
-      nextScheduledTime: this.getNextTime(parsed),
-      job,
-      isActive: true
+      parsed,
+      handler,
+      stop: () => this.jobs.delete(id)
     };
 
-    this.jobs.push(task);
+    this.jobs.set(id, task);
+    Logger.debug(`[Cron] Scheduled job '${expression}' (ID: ${id})`);
+
     return task;
   }
 
-  private static processJobs() {
-    const now = Math.floor(Date.now() / 1000);
+  /**
+   * Stops the scheduler and clears the active timer.
+   * Call this on resource stop to prevent memory leaks.
+   */
+  public stop() {
+    this.active = false;
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+    Logger.info('[Cron] Scheduler stopped');
+  }
 
-    this.jobs.forEach(task => {
-      if (!task.isActive) return;
+  private startScheduler() {
+    this.active = true;
+    Logger.info('[Cron] Scheduler initialized');
 
-      // If current time is past or equal to scheduled time
-      if (now >= task.nextScheduledTime) {
-        // Run the job
-        try {
-          task.job();
-        } catch (err) {
-          Logger.error(`Cron Job ${task.id} failed: ${err}`);
+    const alignToMinute = () => {
+      if (!this.active) return;
+
+      const now = new Date();
+      const seconds = now.getSeconds();
+      const msUntilNextMinute = (60 - seconds) * 1000 - now.getMilliseconds();
+
+      // FIX: Assign to 'this.timer' AND use it in 'stop()' to satisfy TS6133
+      this.timer = setTimeout(() => {
+        this.processJobs();
+        // Restart cycle
+        alignToMinute();
+      }, msUntilNextMinute + 100);
+    };
+
+    alignToMinute();
+  }
+
+  private processJobs() {
+    const now = new Date();
+    const current = {
+      min: now.getMinutes(),
+      hour: now.getHours(),
+      dom: now.getDate(),
+      month: now.getMonth() + 1,
+      dow: now.getDay()
+    };
+
+    this.jobs.forEach((task) => {
+      try {
+        if (this.isTimeMatch(current, task.parsed)) {
+          task.handler();
         }
-
-        // Recalculate next run
-        const parsed = this.parseExpression(task.expression);
-        task.nextScheduledTime = this.getNextTime(parsed);
+      } catch (e) {
+        Logger.error(`[Cron] Job ${task.id} failed:`, e);
       }
     });
   }
 
-  /**
-   * Simple Cron Parser (Matches ox_lib functionality)
-   * Supports: *, numbers, ranges (1-5), lists (1,3,5), steps (* / 5)
-   */
-  private static parseExpression(expression: string): ParsedExpression {
+  private isTimeMatch(now: {
+    min: number,
+    hour: number,
+    dom: number,
+    month: number,
+    dow: number
+  }, p: ParsedExpression): boolean {
+    if (p.minutes !== 'all' && !p.minutes.has(now.min)) return false;
+    if (p.hours !== 'all' && !p.hours.has(now.hour)) return false;
+    if (p.daysOfMonth !== 'all' && !p.daysOfMonth.has(now.dom)) return false;
+    if (p.months !== 'all' && !p.months.has(now.month)) return false;
+    if (p.daysOfWeek !== 'all' && !p.daysOfWeek.has(now.dow)) return false;
+    return true;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Parsing Logic
+  // ---------------------------------------------------------------------------
+
+  private parse(expression: string): ParsedExpression {
     const parts = expression.trim().split(/\s+/);
-    if (parts.length < 5) throw new Error('Invalid cron expression');
+    if (parts.length < 5) throw new Error(`Invalid cron expression: "${expression}". Expected 5 fields.`);
 
     return {
-      minute: this.parsePart(parts[0], 0, 59),
-      hour: this.parsePart(parts[1], 0, 23),
-      dayOfMonth: this.parsePart(parts[2], 1, 31),
-      month: this.parsePart(parts[3], 1, 12),
-      dayOfWeek: this.parsePart(parts[4], 0, 6) // 0 = Sunday
+      minutes: this.parseField(parts[0], 0, 59),
+      hours: this.parseField(parts[1], 0, 23),
+      daysOfMonth: this.parseField(parts[2], 1, 31),
+      months: this.parseField(parts[3], 1, 12),
+      daysOfWeek: this.parseField(parts[4], 0, 6)
     };
   }
 
-  private static parsePart(part: string, min: number, max: number): number[] | 'all' {
-    if (part === '*') return 'all';
+  private parseField(field: string, min: number, max: number): Set<number> | 'all' {
+    if (field === '*') return 'all';
 
-    const values: Set<number> = new Set();
+    const values = new Set<number>();
+    const parts = field.split(',');
 
-    if (part.includes(',')) {
-      part.split(',').forEach(p => {
-        const res = this.parsePart(p, min, max);
-        if (Array.isArray(res)) res.forEach(r => values.add(r));
-      });
-    } else if (part.includes('-')) {
-      const [start, end] = part.split('-').map(Number);
-      for (let i = start; i <= end; i++) values.add(i);
-    } else if (part.includes('/')) {
-      const [base, step] = part.split('/');
-      const start = base === '*' ? min : Number(base);
-      for (let i = start; i <= max; i += Number(step)) values.add(i);
-    } else {
-      values.add(Number(part));
-    }
+    for (const part of parts) {
+      if (part.includes('/')) {
+        const [range, stepStr] = part.split('/');
+        const step = parseInt(stepStr, 10);
+        let start = min;
+        let end = max;
 
-    const result = Array.from(values).filter(v => v >= min && v <= max).sort((a, b) => a - b);
-    return result;
-  }
+        if (range !== '*') {
+          if (range.includes('-')) {
+            [start, end] = range.split('-').map(Number);
+          } else {
+            start = parseInt(range, 10);
+          }
+        }
 
-  private static getNextTime(parsed: ParsedExpression): number {
-    const date = new Date();
-    // Add 1 minute to start looking from "next" minute, prevent double execution
-    date.setSeconds(0, 0);
-    date.setMinutes(date.getMinutes() + 1);
-
-    // Safety break to prevent infinite loops
-    let safety = 0;
-    while (safety < 100000) {
-      if (this.matchTime(date, parsed)) {
-        return Math.floor(date.getTime() / 1000);
+        for (let i = start; i <= end; i += step) {
+          if (i >= min && i <= max) values.add(i);
+        }
+      } else if (part.includes('-')) {
+        const [start, end] = part.split('-').map(Number);
+        for (let i = start; i <= end; i++) {
+          if (i >= min && i <= max) values.add(i);
+        }
+      } else {
+        const val = parseInt(part, 10);
+        if (!isNaN(val) && val >= min && val <= max) values.add(val);
       }
-      date.setMinutes(date.getMinutes() + 1);
-      safety++;
     }
-    return Math.floor(Date.now() / 1000) + 60; // Fallback
-  }
 
-  private static matchTime(date: Date, parsed: ParsedExpression): boolean {
-    const min = date.getMinutes();
-    const hour = date.getHours();
-    const dom = date.getDate();
-    const month = date.getMonth() + 1;
-    const dow = date.getDay();
-
-    if (Array.isArray(parsed.minute) && !parsed.minute.includes(min)) return false;
-    if (Array.isArray(parsed.hour) && !parsed.hour.includes(hour)) return false;
-    if (Array.isArray(parsed.dayOfMonth) && !parsed.dayOfMonth.includes(dom)) return false;
-    if (Array.isArray(parsed.month) && !parsed.month.includes(month)) return false;
-    if (Array.isArray(parsed.dayOfWeek) && !parsed.dayOfWeek.includes(dow)) return false;
-
-    return true;
+    return values;
   }
 }
+
+export const Cron = {
+  new: (expression: string, job: () => void) => CronManager.getInstance().schedule(expression, job),
+  // Expose stop for resource cleanup
+  destroy: () => CronManager.getInstance().stop()
+};

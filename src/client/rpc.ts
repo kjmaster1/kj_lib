@@ -1,72 +1,70 @@
-import { Logger } from '../common/logger';
-import { RPCRequest, RPCResponse } from '../common/rpc';
+// src/client/rpc.ts
+import {Logger, RpcOptions, RpcPacket, RpcRequestManager} from '../common';
 
 export class ClientRPC {
-  private static pending = new Map<string, { resolve: Function; reject: Function; timeout: CitizenTimer }>();
-  private static registry = new Map<string, (...args: any[]) => Promise<any> | any>();
+  private static requests = new RpcRequestManager();
+  private static handlers = new Map<string, (...args: any[]) => any>();
+  private static initialized = false;
 
-  static init() {
-    // Handle Responses (Client -> Server -> Client)
-    onNet('kj_lib:rpc:response', (payload: RPCResponse) => {
-      const { ticket, data, error } = payload;
-      if (!this.pending.has(ticket)) return;
+  public static init() {
+    if (this.initialized) return;
+    this.initialized = true;
 
-      const { resolve, reject, timeout } = this.pending.get(ticket)!;
-      clearTimeout(timeout);
-      this.pending.delete(ticket);
-
-      if (error) reject(new Error(error));
-      else resolve(data);
-    });
-
-    // Handle Requests (Server -> Client)
-    onNet('kj_lib:rpc:request', async (payload: RPCRequest) => {
-      const { origin, ticket, args } = payload;
-      const handler = this.registry.get(origin);
+    // 1. Incoming Requests (Server -> Client)
+    onNet('kj_lib:rpc:request', async (payload: RpcPacket) => {
+      const {id, method, args} = payload;
+      const handler = this.handlers.get(method);
 
       if (!handler) {
-        Logger.error(`Server requested unknown RPC: ${origin}`);
+        Logger.error(`[RPC] Server requested unknown method: ${method}`);
+        emitNet('kj_lib:rpc:response', {id, error: `Method '${method}' not found`});
         return;
       }
 
       try {
-        const result = await handler(...args);
-        const response: RPCResponse = { ticket, data: result };
-        emitNet('kj_lib:rpc:response', response);
-      } catch (err: any) {
-        Logger.error(`RPC Error in ${origin}: ${err.message}`);
-        emitNet('kj_lib:rpc:response', { ticket, error: err.message });
+        const result = await handler(...(args || []));
+        emitNet('kj_lib:rpc:response', {id, data: result});
+      } catch (e: any) {
+        Logger.error(`[RPC] Error in method '${method}': ${e.message}`);
+        emitNet('kj_lib:rpc:response', {id, error: e.message || 'Internal execution error'});
       }
     });
 
-    Logger.info('Client RPC System Initialized');
+    // 2. Incoming Responses (Server -> Client)
+    // Delegated to the shared manager
+    onNet('kj_lib:rpc:response', (payload: RpcPacket) => {
+      this.requests.handleResponse(payload);
+    });
+
+    Logger.info('Client RPC initialized');
   }
 
-  static async call<T = any>(name: string, ...args: any[]): Promise<T> {
-    return new Promise((resolve, reject) => {
-      const ticket = this.generateTicket();
-      const timeout = setTimeout(() => {
-        if (this.pending.has(ticket)) {
-          this.pending.delete(ticket);
-          reject(new Error(`RPC Timeout: ${name}`));
-        }
-      }, 10000);
+  public static register(method: string, handler: (...args: any[]) => any) {
+    this.handlers.set(method, handler);
+  }
 
-      this.pending.set(ticket, { resolve, reject, timeout });
-      const payload: RPCRequest = { origin: name, ticket, args };
+  public static async call<T = any>(method: string, args: any | any[] = [], options: RpcOptions = {}): Promise<T> {
+    const id = this.generateId();
+    const timeoutMs = options.timeout ?? 10000;
+
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.requests.reject(id, `RPC Timeout: ${method} after ${timeoutMs}ms`);
+      }, timeoutMs);
+
+      this.requests.add(id, {resolve, reject, timer});
+
+      const payload: RpcPacket = {
+        id,
+        method,
+        args: Array.isArray(args) ? args : [args]
+      };
+
       emitNet('kj_lib:rpc:request', payload);
     });
   }
 
-  static register<TArgs extends any[], TResp>(
-    name: string,
-    handler: (...args: TArgs) => Promise<TResp> | TResp
-  ) {
-    this.registry.set(name, handler);
-    Logger.debug(`Registered Client RPC: ${name}`);
-  }
-
-  private static generateTicket(): string {
-    return Math.random().toString(36).substring(2) + Date.now().toString(36);
+  private static generateId(): string {
+    return Math.random().toString(36).substring(2, 15);
   }
 }

@@ -1,168 +1,219 @@
-import { Utils } from '../common/utils';
-import { Grid, GridEntry } from '../common/grid';
-import { Cache } from './cache';
+// src/client/zone.ts
+import {Grid, GridItem, Logger, MathUtils, Vector3} from '../common';
+import {Cache} from './cache';
+
+// -----------------------------------------------------------------------------
+// Types
+// -----------------------------------------------------------------------------
 
 export type ZoneType = 'box' | 'sphere' | 'poly';
 
-export interface ZoneOptions {
+export interface ZoneOptions<T = any> {
   name?: string;
   debug?: boolean;
-  onEnter?: () => void;
-  onExit?: () => void;
-  inside?: () => void;
+  data?: T; // Generic data
+  onEnter?: (zone: Zone<T>) => void;
+  onExit?: (zone: Zone<T>) => void;
+  inside?: (zone: Zone<T>) => void;
 }
 
-export abstract class Zone implements GridEntry {
-  public id: string;
-  public inside: boolean = false;
-  public dimension?: { width: number; length: number };
+// -----------------------------------------------------------------------------
+// Zone Manager (Singleton)
+// Handles the Grid and Ticker loop, separating logic from data.
+// -----------------------------------------------------------------------------
 
-  // We no longer need a static registry array for ticking
-  // The Grid handles storage
-  private static tick: number | null = null;
-  // Keep track of zones currently entered to handle onExit if we teleport away
-  private static insideZones: Set<Zone> = new Set();
+class ZoneManager {
+  private grid = new Grid<Zone<any>>();
+  private activeZones = new Set<Zone<any>>();
+  private insideZones = new Set<Zone<any>>();
+  private tickHandle: number | null = null;
 
-  constructor(public coords: number[], public type: ZoneType, public options: ZoneOptions = {}) {
-    this.id = options.name || Math.random().toString(36).substr(2, 9);
-
-    // Start the static ticker if it's not running
-    Zone.startTicker();
+  public register(zone: Zone<any>) {
+    this.grid.add(zone);
+    this.activeZones.add(zone);
+    this.ensureTicker();
   }
 
-  protected addToGrid(width: number, length: number) {
-    this.dimension = { width, length };
-    Grid.add(this);
+  public unregister(zone: Zone<any>) {
+    this.grid.remove(zone);
+    this.activeZones.delete(zone);
+
+    // If we were inside, force an exit event
+    if (this.insideZones.has(zone)) {
+      this.insideZones.delete(zone);
+      zone.isInside = false;
+      zone.options.onExit?.(zone);
+    }
+
+    if (this.activeZones.size === 0 && this.tickHandle !== null) {
+      clearTick(this.tickHandle);
+      this.tickHandle = null;
+      Logger.debug('[Zone] Ticker stopped (idle)');
+    }
   }
 
-  public destroy() {
-    Grid.remove(this);
+  public updateGrid(zone: Zone<any>) {
+    this.grid.update(zone);
   }
 
-  // Abstract method that subclasses must implement
-  abstract isPointInside(point: number[]): boolean;
-  abstract debugDraw(): void;
+  private ensureTicker() {
+    if (this.tickHandle !== null) return;
+    Logger.debug('[Zone] Ticker started');
 
-  // Main logic loop
-  static startTicker() {
-    if (this.tick !== null) return;
+    this.tickHandle = setTick(() => {
+      const playerCoords = Cache.get().coords;
+      const nearby = this.grid.getNearby(playerCoords, 1);
+      const frameInside = new Set<Zone<any>>();
 
-    this.tick = setTick(() => {
-      // Use Cached coords for performance
-      const pCoords = Cache.coords;
+      for (const zone of nearby) {
+        if (zone.destroyed) continue;
 
-      // 1. Get ONLY nearby zones from the Grid
-      // This transforms O(N) to O(1) for most frames
-      const nearbyZones = Grid.getNearby(pCoords) as Zone[];
+        if (zone.contains(playerCoords)) {
+          frameInside.add(zone);
 
-      // Track which zones we are currently inside during this frame
-      const currentlyInside: Set<Zone> = new Set();
-
-      for (const zone of nearbyZones) {
-        // Double check type safety just in case
-        if (!(zone instanceof Zone)) continue;
-
-        const isInside = zone.isPointInside(pCoords);
-
-        if (isInside) {
-          currentlyInside.add(zone);
-
-          if (!zone.inside) {
-            zone.inside = true;
-            Zone.insideZones.add(zone);
-            if (zone.options.onEnter) zone.options.onEnter();
+          if (!zone.isInside) {
+            zone.isInside = true;
+            this.insideZones.add(zone);
+            zone.options.onEnter?.(zone);
           }
 
-          if (zone.options.inside) {
-            zone.options.inside();
-          }
+          zone.options.inside?.(zone);
         }
 
-        if (zone.options.debug) {
-          zone.debugDraw();
-        }
+        if (zone.options.debug) zone.debugDraw();
       }
 
-      // 2. Handle Exits
-      // We iterate the Set of zones we WERE inside to see if we are NO LONGER inside
-      // This handles cases where we walk out, or teleport out of grid range
-      for (const zone of Zone.insideZones) {
-        if (!currentlyInside.has(zone)) {
-          // We are no longer inside this zone
-          zone.inside = false;
-          Zone.insideZones.delete(zone);
-          if (zone.options.onExit) zone.options.onExit();
+      // Handle Exits
+      for (const zone of this.insideZones) {
+        if (!frameInside.has(zone)) {
+          zone.isInside = false;
+          this.insideZones.delete(zone);
+          zone.options.onExit?.(zone);
         }
       }
     });
   }
 }
 
-export class BoxZone extends Zone {
-  public size: number[];
-  public rotation: number;
+export const ZoneSystem = new ZoneManager();
 
-  constructor(coords: number[], size: number[], rotation: number = 0, options: ZoneOptions = {}) {
-    super(coords, 'box', options);
-    this.size = size; // [width, depth, height]
-    this.rotation = rotation;
+// -----------------------------------------------------------------------------
+// Abstract Zone Class
+// -----------------------------------------------------------------------------
 
-    // Register to Grid with actual dimensions
-    // We use the max dimension to be safe
-    const maxDim = Math.max(size[0], size[1]);
-    this.addToGrid(maxDim, maxDim);
+export abstract class Zone<T = any> implements GridItem {
+  public readonly id: string;
+  public readonly coords: Vector3;
+  public dimension: { width: number; length: number }; // Grid requirement
+  public isInside: boolean = false;
+  public destroyed: boolean = false;
+  public readonly options: ZoneOptions<T>;
+  public readonly data: T | undefined;
+
+  protected constructor(coords: Vector3 | number[], options: ZoneOptions<T>) {
+    this.id = options.name || `zone_${Math.random().toString(36).substring(2, 11)}`;
+    this.options = options;
+    this.data = options.data;
+
+    this.coords = Array.isArray(coords)
+      ? {x: coords[0], y: coords[1], z: coords[2]}
+      : coords;
+
+    // Default dimensions (must be overridden by subclasses before addToGrid)
+    this.dimension = {width: 2, length: 2};
   }
 
-  isPointInside(point: number[]): boolean {
-    const minZ = this.coords[2] - this.size[2] / 2;
-    const maxZ = this.coords[2] + this.size[2] / 2;
-    if (point[2] < minZ || point[2] > maxZ) return false;
-
-    const [rx, ry] = Utils.rotatePoint(this.coords[0], this.coords[1], -this.rotation, point[0], point[1]);
-
-    const halfWidth = this.size[0] / 2;
-    const halfDepth = this.size[1] / 2;
-
-    return (
-      rx >= this.coords[0] - halfWidth &&
-      rx <= this.coords[0] + halfWidth &&
-      ry >= this.coords[1] - halfDepth &&
-      ry <= this.coords[1] + halfDepth
-    );
+  /**
+   * Clean up the zone and remove from system.
+   */
+  public destroy() {
+    if (this.destroyed) return;
+    this.destroyed = true;
+    ZoneSystem.unregister(this);
   }
 
-  debugDraw() {
-    DrawBox(
-      this.coords[0] - this.size[0]/2, this.coords[1] - this.size[1]/2, this.coords[2] - this.size[2]/2,
-      this.coords[0] + this.size[0]/2, this.coords[1] + this.size[1]/2, this.coords[2] + this.size[2]/2,
-      0, 255, 0, 100
-    );
+  abstract contains(point: Vector3): boolean;
+
+  abstract debugDraw(): void;
+
+  /**
+   * Subclasses call this after calculating their initial dimensions.
+   */
+  protected init() {
+    ZoneSystem.register(this);
+    if (this.options.debug) {
+      Logger.debug(`[Zone] Created ${this.id}`);
+    }
+  }
+
+  protected updateDimensions(width: number, length: number) {
+    this.dimension = {width, length};
+    if (!this.destroyed) ZoneSystem.updateGrid(this);
   }
 }
 
-export class SphereZone extends Zone {
-  public radius: number;
+// -----------------------------------------------------------------------------
+// Concrete Implementations
+// -----------------------------------------------------------------------------
 
-  constructor(coords: number[], radius: number, options: ZoneOptions = {}) {
-    super(coords, 'sphere', options);
-    this.radius = radius;
-
-    // Register to Grid (width/length is diameter)
-    this.addToGrid(radius, radius);
+export class SphereZone<T = any> extends Zone<T> {
+  constructor(coords: Vector3 | number[], public radius: number, options: ZoneOptions<T> = {}) {
+    super(coords, options);
+    this.dimension = {width: radius, length: radius};
+    this.init();
   }
 
-  isPointInside(point: number[]): boolean {
-    return Utils.distance(this.coords, point) <= this.radius;
+  contains(point: Vector3): boolean {
+    return MathUtils.distance(this.coords, point) <= this.radius;
   }
 
   debugDraw() {
-    DrawMarker(
-      28, // Sphere type
-      this.coords[0], this.coords[1], this.coords[2],
-      0, 0, 0, 0, 0, 0,
-      this.radius, this.radius, this.radius,
-      0, 255, 0, 100,
-      false, false, 2, false, null, null, false
-    );
+    DrawMarker(28, this.coords.x, this.coords.y, this.coords.z, 0, 0, 0, 0, 0, 0, this.radius, this.radius, this.radius, 0, 255, 0, 30, false, false, 2, false, null, null, false);
+  }
+}
+
+export class BoxZone<T = any> extends Zone<T> {
+  public readonly size: Vector3;
+  public readonly rotation: number;
+  private readonly halfSize: Vector3;
+  private readonly sinRot: number;
+  private readonly cosRot: number;
+
+  constructor(coords: Vector3 | number[], size: Vector3 | number[], rotation: number = 0, options: ZoneOptions<T> = {}) {
+    super(coords, options);
+    this.rotation = rotation;
+
+    this.size = Array.isArray(size)
+      ? {x: size[0], y: size[1], z: size[2]}
+      : size;
+
+    this.halfSize = {x: this.size.x / 2, y: this.size.y / 2, z: this.size.z / 2};
+
+    // Pre-calc Trig
+    const rad = -rotation * MathUtils.DEG2RAD;
+    this.cosRot = Math.cos(rad);
+    this.sinRot = Math.sin(rad);
+
+    // Grid Dimension = Max horizontal extent
+    const maxDim = Math.max(this.size.x, this.size.y);
+    this.dimension = {width: maxDim, length: maxDim};
+
+    this.init();
+  }
+
+  contains(point: Vector3): boolean {
+    if (point.z < this.coords.z - this.halfSize.z || point.z > this.coords.z + this.halfSize.z) return false;
+
+    const dx = point.x - this.coords.x;
+    const dy = point.y - this.coords.y;
+    const localX = (this.cosRot * dx) - (this.sinRot * dy);
+    const localY = (this.sinRot * dx) + (this.cosRot * dy);
+
+    return Math.abs(localX) <= this.halfSize.x && Math.abs(localY) <= this.halfSize.y;
+  }
+
+  debugDraw() {
+    // Simple debug marker at center
+    DrawMarker(0, this.coords.x, this.coords.y, this.coords.z + this.halfSize.z + 0.5, 0, 0, 0, 0, 0, this.rotation, 0.5, 0.5, 0.5, 255, 0, 0, 200, false, false, 2, false, null, null, false);
   }
 }

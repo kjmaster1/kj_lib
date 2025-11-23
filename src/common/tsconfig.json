@@ -1,10 +1,11 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
+    "moduleResolution": "node",
     "baseUrl": "./",
     "paths": {
       "~/*": ["../../*"],
-      "@common/*": ["../common/*"]
+      "@common/*": ["./*"]
     },
     "types": ["@types/node", "@citizenfx/server", "@citizenfx/client"]
   },

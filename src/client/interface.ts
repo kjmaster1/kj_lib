@@ -1,8 +1,19 @@
-import {Logger} from "../common/logger";
-import { Cache } from "./cache";
+// src/client/interface.ts
+import {Logger} from '../common';
+import {Cache} from './cache';
+
+// -----------------------------------------------------------------------------
+// Types & Interfaces
+// -----------------------------------------------------------------------------
 
 export type IconProp = string | [string, string];
 
+export interface NuiMessage<T = any> {
+  action: string;
+  data?: T;
+}
+
+// --- Alert Types ---
 export interface AlertDialogProps {
   header: string;
   content: string;
@@ -13,34 +24,36 @@ export interface AlertDialogProps {
   labels?: { cancel?: string; confirm?: string };
 }
 
+// --- Context Menu Types ---
 export interface ContextMenuItem {
   title?: string;
-  menu?: string;
+  menu?: string; // Submenu ID
   icon?: IconProp;
   iconColor?: string;
   image?: string;
   progress?: number;
-  onSelect?: (args: any) => void;
+  onSelect?: (args: unknown) => void;
   arrow?: boolean;
   description?: string;
-  metadata?: string | { [key: string]: any } | string[];
+  metadata?: string | Record<string, unknown> | string[];
   disabled?: boolean;
   readOnly?: boolean;
   event?: string;
   serverEvent?: string;
-  args?: any;
+  args?: unknown;
 }
 
 export interface ContextMenuProps {
   id: string;
   title: string;
-  menu?: string;
+  menu?: string; // Parent menu ID
   onExit?: () => void;
   onBack?: () => void;
   canClose?: boolean;
-  options: { [key: string]: ContextMenuItem } | ContextMenuItem[];
+  options: Record<string, ContextMenuItem> | ContextMenuItem[];
 }
 
+// --- List Menu Types ---
 export interface MenuOptions {
   label: string;
   progress?: number;
@@ -51,7 +64,7 @@ export interface MenuOptions {
   checked?: boolean;
   description?: string;
   defaultIndex?: number;
-  args?: { [key: string]: any };
+  args?: Record<string, unknown>;
   close?: boolean;
 }
 
@@ -63,11 +76,12 @@ export interface MenuProps {
   disableInput?: boolean;
   canClose?: boolean;
   onClose?: (keyPressed?: 'Escape' | 'Backspace') => void;
-  onSelected?: (selected: number, scrollIndex?: number, args?: any) => void;
-  onSideScroll?: (selected: number, scrollIndex?: number, args?: any) => void;
-  onCheck?: (selected: number, checked: boolean, args?: any) => void;
+  onSelected?: (selected: number, scrollIndex?: number, args?: unknown) => void;
+  onSideScroll?: (selected: number, scrollIndex?: number, args?: unknown) => void;
+  onCheck?: (selected: number, checked: boolean, args?: unknown) => void;
 }
 
+// --- Notification & HUD Types ---
 export interface NotifyProps {
   id?: string;
   title?: string;
@@ -76,7 +90,6 @@ export interface NotifyProps {
   showDuration?: boolean;
   position?: 'top' | 'top-right' | 'top-left' | 'bottom' | 'bottom-right' | 'bottom-left' | 'center-right' | 'center-left';
   type?: 'info' | 'warning' | 'success' | 'error';
-  style?: { [key: string]: any };
   icon?: IconProp;
   iconAnimation?: 'spin' | 'spinPulse' | 'spinReverse' | 'pulse' | 'beat' | 'fade' | 'beatFade' | 'bounce' | 'shake';
   iconColor?: string;
@@ -87,10 +100,10 @@ export interface TextUIOptions {
   position?: 'right-center' | 'left-center' | 'top-center' | 'bottom-center';
   icon?: IconProp;
   iconColor?: string;
-  style?: { [key: string]: any };
   alignIcon?: 'top' | 'center';
 }
 
+// --- Skill & Radial Types ---
 export interface SkillCheckDifficulty {
   areaSize: number;
   speedMultiplier: number;
@@ -103,7 +116,7 @@ export interface RadialItem {
   onSelect?: () => void;
   event?: string;
   serverEvent?: string;
-  args?: any;
+  args?: unknown;
   keepOpen?: boolean;
   menu?: string; // Submenu ID
 }
@@ -113,515 +126,434 @@ export interface RadialMenuProps {
   items: RadialItem[];
 }
 
-export class Interface {
-  // Registries
-  private static contextMenus: Record<string, ContextMenuProps> = {};
-  private static openContextMenu: string | null = null;
-  private static menuTick: number | null = null;
+// -----------------------------------------------------------------------------
+// Core NUI Service (Handles Communication & Focus)
+// -----------------------------------------------------------------------------
 
-  private static registeredMenus: Record<string, MenuProps> = {};
-  private static openMenu: MenuProps | null = null;
+class NuiManager {
+  private keepInput = false;
 
-  private static radialMenus: Record<string, RadialMenuProps> = {};
-  private static currentRadial: string | null = null;
-  private static radialOpen = false;
-
-  // Resolvers
-  private static alertResolver: ((value: 'cancel' | 'confirm' | null) => void) | null = null;
-  private static inputResolver: ((value: any[] | null) => void) | null = null;
-  private static skillCheckResolver: ((value: boolean) => void) | null = null;
-
-  // State
-  // @ts-ignore
-  private static isTextUIOpen = false;
-  private static currentTextUI: string | null = null;
-  private static keepInput = false;
-
-  static init() {
-
-
-    // Register the 'init' callback
+  constructor() {
     RegisterNuiCallbackType('init');
     on('__cfx_nui:init', (_: any, cb: (data: any) => void) => {
-      Logger.info('UI Initialized');
-      // Send back 'ok' or any data to resolve the promise in the UI
+      Logger.info('UI Initialized via NuiManager');
       cb('ok');
     });
 
-    // Register the 'getConfig' callback
     RegisterNuiCallbackType('getConfig');
     on('__cfx_nui:getConfig', (_: any, cb: (data: any) => void) => {
-      const config = {
+      cb({
         primaryColor: GetConvar('kj_lib:primaryColor', 'blue'),
         primaryShade: GetConvarInt('kj_lib:primaryShade', 6)
-      };
-
-      cb(config);
+      });
     });
+  }
 
-    // --- ALERT ---
-    RegisterNuiCallbackType('closeAlert');
-    on('__cfx_nui:closeAlert', (data: any, cb: Function) => {
+  public send<T = any>(action: string, data?: T) {
+    SendNuiMessage(JSON.stringify({action, data}));
+  }
+
+  public setFocus(focus: boolean, cursor: boolean = false, keepInput: boolean = false) {
+    if (focus) {
+      this.keepInput = IsNuiFocusKeepingInput();
+    }
+    SetNuiFocus(focus, cursor);
+    SetNuiFocusKeepInput(keepInput);
+
+    // If disabling focus, attempt to restore previous input state or default to false
+    if (!focus) {
+      SetNuiFocusKeepInput(this.keepInput);
+    }
+  }
+
+  public registerCallback<T = any>(name: string, handler: (data: T, cb: (resp: any) => void) => void) {
+    RegisterNuiCallbackType(name);
+    on(`__cfx_nui:${name}`, (data: T, cb: (resp: any) => void) => {
+      handler(data, cb);
+    });
+  }
+}
+
+const Nui = new NuiManager();
+
+// -----------------------------------------------------------------------------
+// Feature Services
+// -----------------------------------------------------------------------------
+
+class DialogService {
+  private resolver: ((value: any) => void) | null = null;
+
+  constructor() {
+    Nui.registerCallback('closeAlert', (data: any, cb) => {
       cb(1);
-      this.resetNuiFocus();
-      if (this.alertResolver) this.alertResolver(data);
-      this.alertResolver = null;
+      Nui.setFocus(false);
+      this.resolve(data);
     });
 
-    // --- CONTEXT MENU ---
-    RegisterNuiCallbackType('openContext');
-    on('__cfx_nui:openContext', (data: any, cb: Function) => {
-      if (this.openContextMenu && this.contextMenus[this.openContextMenu]?.onBack) {
-        this.contextMenus[this.openContextMenu].onBack!();
+    Nui.registerCallback('inputData', (data: any[], cb) => {
+      cb(1);
+      Nui.setFocus(false);
+      this.resolve(data);
+    });
+
+    Nui.registerCallback('closeInputDialog', (_, cb) => {
+      cb(1);
+      Nui.setFocus(false);
+      this.resolve(null);
+    });
+  }
+
+  private resolve(value: any) {
+    if (this.resolver) {
+      this.resolver(value);
+      this.resolver = null;
+    }
+  }
+
+  public async alert(data: AlertDialogProps): Promise<'cancel' | 'confirm' | null> {
+    if (this.resolver) return null; // Prevent overlapping dialogs
+
+    Nui.setFocus(true, true, false);
+    Nui.send('sendAlert', data);
+
+    return new Promise(resolve => {
+      this.resolver = resolve;
+    });
+  }
+
+  public async input(heading: string, rows: any[], options?: { allowCancel?: boolean }): Promise<any[] | null> {
+    if (this.resolver) this.resolver(null); // Cancel previous if strictly needed
+
+    Nui.setFocus(true, true, false);
+    Nui.send('openDialog', {heading, rows, options});
+
+    return new Promise(resolve => {
+      this.resolver = resolve;
+    });
+  }
+}
+
+class MenuService {
+  private contexts: Record<string, ContextMenuProps> = {};
+  private menus: Record<string, MenuProps> = {};
+  private radials: Record<string, RadialMenuProps> = {};
+
+  private activeContext: string | null = null;
+  private activeMenu: MenuProps | null = null;
+  private activeRadial: string | null = null;
+
+  private menuTick: number | null = null;
+
+  constructor() {
+    this.registerContextCallbacks();
+    this.registerListCallbacks();
+    this.registerRadialCallbacks();
+  }
+
+  // --- Context Internal ---
+  private registerContextCallbacks() {
+    Nui.registerCallback('openContext', (data: { id: string }, cb) => {
+      if (this.activeContext && this.contexts[this.activeContext]?.onBack) {
+        this.contexts[this.activeContext].onBack!();
       }
       cb(1);
       this.showContext(data.id);
     });
 
-    RegisterNuiCallbackType('closeContext');
-    on('__cfx_nui:closeContext', (_: any, cb: Function) => {
-      this.closeContext(cb);
+    Nui.registerCallback('closeContext', (_, cb) => {
+      cb(1);
+      this.closeContext();
     });
 
-    RegisterNuiCallbackType('clickContext');
-    on('__cfx_nui:clickContext', (id: number | string, cb: Function) => {
+    Nui.registerCallback('clickContext', (id: number | string, cb) => {
       cb(1);
-      if (!this.openContextMenu) return;
+      if (!this.activeContext) return;
 
-      // Handle array or object indexing
-      const menuData = this.contextMenus[this.openContextMenu];
-      let item: any;
-
-      // Adjust 0-based index from JS if necessary or match keys
-      if (Array.isArray(menuData.options)) {
-        item = menuData.options[Number(id)];
-      } else {
-        item = (menuData.options as any)[id];
-      }
+      const menu = this.contexts[this.activeContext];
+      const item = Array.isArray(menu.options)
+        ? menu.options[Number(id)]
+        : menu.options[id];
 
       if (!item) return;
 
-      if (!item.event && !item.serverEvent && !item.onSelect) return;
-
-      this.openContextMenu = null;
-      SendNuiMessage(JSON.stringify({ action: 'hideContext' }));
-      this.resetNuiFocus();
+      // Close unless it's just a display item? usually context closes on click
+      this.closeContext(false);
 
       if (item.onSelect) item.onSelect(item.args);
       if (item.event) emit(item.event, item.args);
       if (item.serverEvent) TriggerServerEvent(item.serverEvent, item.args);
     });
+  }
 
-    // --- INPUT ---
-    RegisterNuiCallbackType('inputData');
-    on('__cfx_nui:inputData', (data: any[], cb: Function) => {
+  // --- List Internal ---
+  private registerListCallbacks() {
+    Nui.registerCallback('closeMenu', (_, cb) => {
       cb(1);
-      this.resetNuiFocus();
-      if (this.inputResolver) this.inputResolver(data);
-      this.inputResolver = null;
+      this.closeMenu();
     });
 
-    RegisterNuiCallbackType('closeInputDialog');
-    on('__cfx_nui:closeInputDialog', (_: any, cb: Function) => {
+    Nui.registerCallback('changeSelected', (data: any, cb) => {
       cb(1);
-      this.resetNuiFocus();
-      if (this.inputResolver) this.inputResolver(null);
-      this.inputResolver = null;
+      if (!this.activeMenu?.onSelected) return;
+
+      const [rawIndex, scrollIndex, checkValue] = data;
+      const index = rawIndex + 1; // Lua 1-based standard compatibility
+
+      const item = this.activeMenu.options[rawIndex];
+      const args = item?.args || {};
+
+      if (checkValue !== undefined) args[checkValue] = true;
+
+      // Logic ported from original: Scroll index adjustment
+      const finalScroll = (scrollIndex !== undefined && !args.isCheck)
+        ? scrollIndex + 1
+        : scrollIndex;
+
+      this.activeMenu.onSelected(index, finalScroll, args);
     });
 
-    // --- MENU ---
-    RegisterNuiCallbackType('closeMenu');
-    on('__cfx_nui:closeMenu', (data: any, cb: Function) => {
+    Nui.registerCallback('confirmSelected', (data: any, cb) => {
       cb(1);
-      this.resetNuiFocus();
-      if (this.openMenu?.onClose) this.openMenu.onClose(data);
-      this.openMenu = null;
-    });
+      if (!this.activeMenu) return;
 
-    RegisterNuiCallbackType('changeSelected');
-    on('__cfx_nui:changeSelected', (data: any, cb: Function) => {
-      cb(1);
-      if (!this.openMenu || !this.openMenu.onSelected) return;
+      const [rawIndex, scrollIndex] = data;
+      const item = this.activeMenu.options[rawIndex];
 
-      const rawSelectedIndex = data[0];
-      const selectedIndex1Based = rawSelectedIndex + 1;
+      if (item.close !== false) this.closeMenu();
 
-      const item = this.openMenu.options[rawSelectedIndex];
-
-      if (!item) return;
-
-      let args = item.args;
-
-      if (args && typeof args !== 'object') {
-        Logger.error('Menu args must be passed as a table');
-        return;
-      }
-
-      if (!args) {
-        args = {};
-      }
-
-      const scrollIndexProvided = data[1] !== null && data[1] !== undefined;
-
-      if (scrollIndexProvided) {
-        const value = data[2];
-        if (value !== undefined) {
-          args[value] = true;
-        }
-      }
-
-      let finalScrollIndex = data[1];
-
-      if (scrollIndexProvided && !args.isCheck) {
-        finalScrollIndex += 1;
-      }
-
-      this.openMenu.onSelected(selectedIndex1Based, finalScrollIndex, args);
-    });
-
-    RegisterNuiCallbackType('confirmSelected');
-    on('__cfx_nui:confirmSelected', (data: any, cb: Function) => {
-      cb(1);
-      if (!this.openMenu) return;
-
-      // @ts-ignore
-      const [selectedIndex, scrollIndex, checked] = data;
-      // data[0] is index, data[1] is scrollIndex (optional), data[2] is checked (optional)
-
-      const item = this.openMenu.options[selectedIndex];
-
-      if (item.close !== false) {
-        this.resetNuiFocus();
-        this.openMenu = null;
-      }
-
-      if (this.openMenu?.onSelected) {
-        this.openMenu.onSelected(selectedIndex + 1, scrollIndex !== undefined ? scrollIndex + 1 : undefined, item.args);
+      if (this.activeMenu.onSelected) {
+        this.activeMenu.onSelected(rawIndex + 1, scrollIndex !== undefined ? scrollIndex + 1 : undefined, item.args);
       }
     });
 
-    RegisterNuiCallbackType('changeIndex');
-    on('__cfx_nui:changeIndex', (data: any, cb: Function) => {
+    Nui.registerCallback('changeIndex', (data: any, cb) => {
       cb(1);
-      if (!this.openMenu?.onSideScroll) return;
+      if (!this.activeMenu?.onSideScroll) return;
       const [selectedIndex, scrollIndex] = data;
-      const item = this.openMenu.options[selectedIndex];
-      this.openMenu.onSideScroll(selectedIndex + 1, scrollIndex + 1, item.args);
+      const item = this.activeMenu.options[selectedIndex];
+      this.activeMenu.onSideScroll(selectedIndex + 1, scrollIndex + 1, item.args);
     });
 
-    RegisterNuiCallbackType('changeChecked');
-    on('__cfx_nui:changeChecked', (data: any, cb: Function) => {
+    Nui.registerCallback('changeChecked', (data: any, cb) => {
       cb(1);
-      if (!this.openMenu?.onCheck) return;
+      if (!this.activeMenu?.onCheck) return;
       const [selectedIndex, checked] = data;
-      const item = this.openMenu.options[selectedIndex];
-      this.openMenu.onCheck(selectedIndex + 1, checked, item.args);
+      const item = this.activeMenu.options[selectedIndex];
+      this.activeMenu.onCheck(selectedIndex + 1, checked, item.args);
     });
+  }
 
-    // --- SKILL CHECK ---
-    RegisterNuiCallbackType('skillCheckOver');
-    on('__cfx_nui:skillCheckOver', (success: boolean, cb: Function) => {
+  // --- Radial Internal ---
+  private registerRadialCallbacks() {
+    Nui.registerCallback('radialClick', (data: { itemId: string, menuId?: string }, cb) => {
       cb(1);
-      this.resetNuiFocus();
-      if (this.skillCheckResolver) this.skillCheckResolver(success);
-      this.skillCheckResolver = null;
-    });
+      const {itemId, menuId} = data;
 
-    // --- RADIAL MENU ---
-    RegisterNuiCallbackType('radialClick');
-    on('__cfx_nui:radialClick', (data: any, cb: Function) => {
-      cb(1);
-      const { itemId, menuId } = data;
-
-      // Handle navigation if it's a submenu
-      if (this.radialMenus[itemId]) {
+      // Submenu navigation
+      if (this.radials[itemId]) {
         this.showRadial(itemId);
         return;
       }
 
-      // Handle Selection
-      const menu = this.radialMenus[menuId || this.currentRadial];
+      // Item Action
+      const menu = this.radials[menuId || this.activeRadial || ''];
       if (!menu) return;
 
       const item = menu.items.find(i => i.id === itemId);
-      if (item) {
-        if (!item.keepOpen) this.hideRadial();
-        if (item.onSelect) item.onSelect();
-        if (item.event) emit(item.event, item.args);
-        if (item.serverEvent) TriggerServerEvent(item.serverEvent, item.args);
-      }
+      if (!item) return;
+
+      if (!item.keepOpen) this.closeRadial();
+      if (item.onSelect) item.onSelect();
+      if (item.event) emit(item.event, item.args);
+      if (item.serverEvent) TriggerServerEvent(item.serverEvent, item.args);
     });
 
-    RegisterNuiCallbackType('radialClose');
-    on('__cfx_nui:radialClose', (_: any, cb: Function) => {
+    Nui.registerCallback('radialClose', (_, cb) => {
       cb(1);
-      this.hideRadial();
+      this.closeRadial();
     });
   }
 
-  // ============================================
-  // NUI FOCUS HELPERS
-  // ============================================
+  // --- Public API ---
 
-  static setNuiFocus(allowInput: boolean, disableCursor: boolean = false) {
-    this.keepInput = IsNuiFocusKeepingInput();
-    SetNuiFocus(true, !disableCursor);
-    SetNuiFocusKeepInput(allowInput);
+  public registerContext(ctx: ContextMenuProps) {
+    this.contexts[ctx.id] = ctx;
   }
 
-  static resetNuiFocus() {
-    SetNuiFocus(false, false);
-    SetNuiFocusKeepInput(this.keepInput);
-  }
+  public showContext(id: string) {
+    const ctx = this.contexts[id];
+    if (!ctx) return Logger.error(`Context ${id} not found`);
 
-  // ============================================
-  // ALERT
-  // ============================================
-
-  static async alertDialog(data: AlertDialogProps): Promise<'cancel' | 'confirm' | null> {
-    if (this.alertResolver) return null;
-
-    this.setNuiFocus(false);
-    SendNuiMessage(JSON.stringify({
-      action: 'sendAlert',
-      data: data
-    }));
-
-    return new Promise((resolve) => {
-      this.alertResolver = resolve;
+    this.activeContext = id;
+    Nui.setFocus(true, true, false);
+    Nui.send('showContext', {
+      title: ctx.title,
+      canClose: ctx.canClose,
+      menu: ctx.menu,
+      options: ctx.options
     });
   }
 
-  // ============================================
-  // CONTEXT MENU
-  // ============================================
-
-  static registerContext(context: ContextMenuProps) {
-    this.contextMenus[context.id] = context;
-  }
-
-  static showContext(id: string) {
-    const data = this.contextMenus[id];
-    if (!data) {
-      Logger.error(`No context menu with id ${id} found.`);
-      return;
+  public closeContext(triggerExitCallback = true) {
+    if (this.activeContext && triggerExitCallback) {
+      this.contexts[this.activeContext]?.onExit?.();
     }
-
-    this.openContextMenu = id;
-    this.setNuiFocus(false);
-
-    SendNuiMessage(JSON.stringify({
-      action: 'showContext',
-      data: {
-        title: data.title,
-        canClose: data.canClose,
-        menu: data.menu,
-        options: data.options
-      }
-    }));
+    this.activeContext = null;
+    Nui.setFocus(false);
+    Nui.send('hideContext');
   }
 
-  static hideContext(onExit: boolean = false) {
-    this.closeContext(null, onExit);
+  public registerMenu(menu: MenuProps) {
+    this.menus[menu.id] = menu;
   }
 
-  private static closeContext(cb?: Function, onExit?: boolean) {
-    if (cb) cb(1);
-    this.resetNuiFocus();
-
-    if (!this.openContextMenu) return;
-
-    if ((cb || onExit) && this.contextMenus[this.openContextMenu]?.onExit) {
-      this.contextMenus[this.openContextMenu].onExit!();
-    }
-
-    if (!cb) SendNuiMessage(JSON.stringify({ action: 'hideContext' }));
-    this.openContextMenu = null;
-  }
-
-  // ============================================
-  // INPUT
-  // ============================================
-
-  static async inputDialog(heading: string, rows: any[], options?: { allowCancel?: boolean }): Promise<any[] | null> {
-    if (this.inputResolver) this.inputResolver(null);
-
-    this.setNuiFocus(false);
-    SendNuiMessage(JSON.stringify({
-      action: 'openDialog',
-      data: {
-        heading,
-        rows,
-        options
-      }
-    }));
-
-    return new Promise((resolve) => {
-      this.inputResolver = resolve;
-    });
-  }
-
-  // ============================================
-  // MENU
-  // ============================================
-
-  static registerMenu(data: MenuProps) {
-    this.registeredMenus[data.id] = data;
-  }
-
-  static showMenu(id: string, startIndex?: number) {
-    const menu = this.registeredMenus[id];
+  public showMenu(id: string, startIndex?: number) {
+    const menu = this.menus[id];
     if (!menu) return Logger.error(`Menu ${id} not found`);
 
-    if (menu.disableInput !== false) {
-      if (this.menuTick !== null) clearTick(this.menuTick);
+    this.activeMenu = menu;
 
+    // Handle Control Disabling
+    if (menu.disableInput !== false) {
+      if (this.menuTick) clearTick(this.menuTick);
       this.menuTick = setTick(() => {
-        DisablePlayerFiring(Cache.playerId, true);
+        DisablePlayerFiring(Cache.get().playerId, true);
         HudWeaponWheelIgnoreSelection();
-        DisableControlAction(0, 140, true)
+        DisableControlAction(0, 140, true);
       });
     }
 
-    this.openMenu = menu;
-    this.setNuiFocus(menu.disableInput !== true, true); // Keep input true if we want to walk/move
+    // Allow input (movement) if disableInput is false
+    Nui.setFocus(true, false, menu.disableInput !== true);
 
-    SendNuiMessage(JSON.stringify({
-      action: 'setMenu',
-      data: {
-        position: menu.position,
-        canClose: menu.canClose,
-        title: menu.title,
-        items: menu.options,
-        startItemIndex: startIndex ? startIndex - 1 : 0
-      }
-    }));
-  }
-
-  static hideMenu(onExit: boolean = false) {
-    if (!this.openMenu) return;
-
-    if (this.menuTick !== null) {
-      clearTick(this.menuTick);
-      this.menuTick = null;
-    }
-
-    this.resetNuiFocus();
-    if (onExit && this.openMenu.onClose) this.openMenu.onClose();
-
-    SendNuiMessage(JSON.stringify({ action: 'closeMenu' }));
-    this.openMenu = null;
-  }
-
-  // ============================================
-  // NOTIFY
-  // ============================================
-
-  static notify(data: NotifyProps) {
-    SendNuiMessage(JSON.stringify({
-      action: 'notify',
-      data: data
-    }));
-  }
-
-  // ============================================
-  // TEXT UI
-  // ============================================
-
-  static showTextUI(text: string, options: TextUIOptions = {}) {
-    if (this.currentTextUI === text) return;
-    this.currentTextUI = text;
-    this.isTextUIOpen = true;
-
-    SendNuiMessage(JSON.stringify({
-      action: 'textUi',
-      data: {
-        text,
-        ...options
-      }
-    }));
-  }
-
-  static hideTextUI() {
-    SendNuiMessage(JSON.stringify({ action: 'textUiHide' }));
-    this.isTextUIOpen = false;
-    this.currentTextUI = null;
-  }
-
-  // ============================================
-  // SKILL CHECK
-  // ============================================
-
-  static async skillCheck(difficulty: SkillCheckDifficulty | SkillCheckDifficulty[], inputs?: string[]): Promise<boolean> {
-    if (this.skillCheckResolver) return false;
-
-    this.setNuiFocus(false, true); // Focus NUI, disable cursor (mouse control for skillcheck usually not needed but keyboard is)
-
-    SendNuiMessage(JSON.stringify({
-      action: 'startSkillCheck',
-      data: {
-        difficulty,
-        inputs
-      }
-    }));
-
-    return new Promise((resolve) => {
-      this.skillCheckResolver = resolve;
+    Nui.send('setMenu', {
+      position: menu.position,
+      canClose: menu.canClose,
+      title: menu.title,
+      items: menu.options,
+      startItemIndex: startIndex ? startIndex - 1 : 0
     });
   }
 
-  static cancelSkillCheck() {
-    if (!this.skillCheckResolver) return;
-    SendNuiMessage(JSON.stringify({ action: 'skillCheckCancel' }));
-    this.skillCheckResolver(false);
-    this.skillCheckResolver = null;
-    this.resetNuiFocus();
+  public closeMenu() {
+    if (this.menuTick) {
+      clearTick(this.menuTick);
+      this.menuTick = null;
+    }
+    if (this.activeMenu?.onClose) this.activeMenu.onClose();
+
+    this.activeMenu = null;
+    Nui.setFocus(false);
+    Nui.send('closeMenu');
   }
 
-  // ============================================
-  // RADIAL MENU
-  // ============================================
-
-  static registerRadial(menu: RadialMenuProps) {
-    this.radialMenus[menu.id] = menu;
+  public registerRadial(menu: RadialMenuProps) {
+    this.radials[menu.id] = menu;
   }
 
-  static showRadial(id: string) {
-    const menu = this.radialMenus[id];
-    if (!menu) return Logger.error(`Radial menu ${id} not found`);
+  public showRadial(id: string) {
+    if (!this.radials[id]) return Logger.error(`Radial ${id} not found`);
 
-    this.currentRadial = id;
-    this.radialOpen = true;
-
-    // Set NUI Focus (Keep Input true so we can move while selecting if desired, or false to stop)
-    this.setNuiFocus(true, true);
+    this.activeRadial = id;
+    Nui.setFocus(true, true, true); // Keep input for movement
     SetCursorLocation(0.5, 0.5);
 
-    SendNuiMessage(JSON.stringify({
-      action: 'openRadialMenu',
-      data: {
-        items: menu.items,
-        id: menu.id
+    Nui.send('openRadialMenu', {items: this.radials[id].items, id});
+  }
+
+  public closeRadial() {
+    this.activeRadial = null;
+    Nui.setFocus(false);
+    Nui.send('openRadialMenu', false);
+  }
+}
+
+class HudService {
+  private skillResolver: ((val: boolean) => void) | null = null;
+
+  constructor() {
+    Nui.registerCallback('skillCheckOver', (success: boolean, cb) => {
+      cb(1);
+      Nui.setFocus(false);
+      if (this.skillResolver) {
+        this.skillResolver(success);
+        this.skillResolver = null;
       }
-    }));
+    });
   }
 
-  static hideRadial() {
-    if (!this.radialOpen) return;
-    this.radialOpen = false;
-    this.currentRadial = null;
-    this.resetNuiFocus();
-    SendNuiMessage(JSON.stringify({ action: 'openRadialMenu', data: false }));
+  public notify(data: NotifyProps) {
+    Nui.send('notify', data);
   }
 
-  // ============================================
-  // CLIPBOARD
-  // ============================================
-
-  static copyToClipboard(text: string) {
-    SendNuiMessage(JSON.stringify({
-      action: 'copyToClipboard',
-      data: { content: text }
-    }));
+  public showTextUI(text: string, options: TextUIOptions = {}) {
+    Nui.send('textUi', {text, ...options});
   }
+
+  public hideTextUI() {
+    Nui.send('textUiHide');
+  }
+
+  public copyToClipboard(text: string) {
+    Nui.send('copyToClipboard', {content: text});
+  }
+
+  public async skillCheck(difficulty: SkillCheckDifficulty | SkillCheckDifficulty[], inputs?: string[]): Promise<boolean> {
+    if (this.skillResolver) return false;
+
+    Nui.setFocus(true, false, true); // Focus NUI, No Cursor, Keep Input (for keys)
+    Nui.send('startSkillCheck', {difficulty, inputs});
+
+    return new Promise(resolve => {
+      this.skillResolver = resolve;
+    });
+  }
+
+  public cancelSkillCheck() {
+    if (this.skillResolver) {
+      this.skillResolver(false);
+      this.skillResolver = null;
+      Nui.send('skillCheckCancel');
+      Nui.setFocus(false);
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Facade (Exported API)
+// -----------------------------------------------------------------------------
+
+const Dialogs = new DialogService();
+const Menus = new MenuService();
+const Hud = new HudService();
+
+export class Interface {
+  static init() {
+    // No-op, initialized by service instantiation or NuiManager
+    Logger.info('Interface Services Ready');
+  }
+
+  // Facade methods for backward compatibility or cleanliness
+  static alertDialog = Dialogs.alert.bind(Dialogs);
+  static inputDialog = Dialogs.input.bind(Dialogs);
+
+  static registerContext = Menus.registerContext.bind(Menus);
+  static showContext = Menus.showContext.bind(Menus);
+  static hideContext = Menus.closeContext.bind(Menus);
+
+  static registerMenu = Menus.registerMenu.bind(Menus);
+  static showMenu = Menus.showMenu.bind(Menus);
+  static hideMenu = Menus.closeMenu.bind(Menus);
+
+  static registerRadial = Menus.registerRadial.bind(Menus);
+  static showRadial = Menus.showRadial.bind(Menus);
+  static hideRadial = Menus.closeRadial.bind(Menus);
+
+  static notify = Hud.notify.bind(Hud);
+  static showTextUI = Hud.showTextUI.bind(Hud);
+  static hideTextUI = Hud.hideTextUI.bind(Hud);
+  static copyToClipboard = Hud.copyToClipboard.bind(Hud);
+
+  static skillCheck = Hud.skillCheck.bind(Hud);
+  static cancelSkillCheck = Hud.cancelSkillCheck.bind(Hud);
 }

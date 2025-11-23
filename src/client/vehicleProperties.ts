@@ -1,337 +1,339 @@
-export interface VehicleProps {
-  model?: number;
-  plate?: string;
-  plateIndex?: number
-  bodyHealth?: number
-  engineHealth?: number
-  tankHealth?: number
-  fuelLevel?: number
-  oilLevel?: number
-  dirtLevel?: number
-  paintType1?: number
-  paintType2?: number
-  color1?: number | number[]
-  color2?: number | number[]
-  pearlescentColor?: number
-  interiorColor?: number
-  dashboardColor?: number
-  wheelColor?: number
-  wheelWidth?: number
-  wheelSize?: number
-  wheels?: number
-  windowTint?: number
-  xenonColor?: number
-  neonEnabled?: boolean[]
-  neonColor?: number[]
-  extras?: Record<number | string, 0 | 1>;
-  tyreSmokeColor?: number | number[]
-  modSpoilers?: number
-  modFrontBumper?: number
-  modRearBumper?: number
-  modSideSkirt?: number
-  modExhaust?: number
-  modFrame?: number
-  modGrille?: number
-  modHood?: number
-  modFender?: number
-  modRightFender?: number
-  modRoof?: number
-  modEngine?: number
-  modBrakes?: number
-  modTransmission?: number
-  modHorns?: number
-  modSuspension?: number
-  modArmor?: number
-  modNitrous?: number
-  modTurbo?: boolean
-  modSubwoofer?: boolean
-  modSmokeEnabled?: boolean
-  modHydraulics?: boolean
-  modXenon?: boolean
-  modFrontWheels?: number
-  modBackWheels?: number
-  modCustomTiresF?: boolean
-  modCustomTiresR?: boolean
-  modPlateHolder?: number
-  modVanityPlate?: number
-  modTrimA?: number
-  modOrnaments?: number
-  modDashboard?: number
-  modDial?: number
-  modDoorSpeaker?: number
-  modSeats?: number
-  modSteeringWheel?: number
-  modShifterLeavers?: number
-  modAPlate?: number
-  modSpeakers?: number
-  modTrunk?: number
-  modHydrolic?: number
-  modEngineBlock?: number
-  modAirFilter?: number
-  modStruts?: number
-  modArchCover?: number
-  modAerials?: number
-  modTrimB?: number
-  modTank?: number
-  modWindows?: number
-  modDoorR?: number
-  modLivery?: number
-  modRoofLivery?: number
-  modLightbar?: number
-  livery?: number
-  windows?: number[]
-  doors?: number[]
-  tyres?: Record<number | string, 1 | 2>;
-  bulletProofTyres?: boolean
-  driftTyres?: boolean
+// src/client/vehicleProperties.ts
+
+
+// -----------------------------------------------------------------------------
+// Types
+// -----------------------------------------------------------------------------
+
+export type ColorRGB = [number, number, number];
+
+export interface VehicleHealth {
+  body: number;
+  engine: number;
+  tank: number;
+  fuel: number;
+  oil: number;
+  dirt: number;
+  tires: Record<number, { burst: boolean; completely: boolean }>;
+  windows: number[]; // Indexes of broken windows
+  doors: number[]; // Indexes of broken doors
 }
 
+export interface VehicleCosmetics {
+  plate: { text: string; index: number };
+  paint: {
+    primary: { type: number; color: number | ColorRGB };
+    secondary: { type: number; color: number | ColorRGB };
+    pearlescent: number;
+    wheel: number;
+    interior: number;
+    dashboard: number;
+    xenon: number;
+    tyreSmoke: ColorRGB;
+  };
+  neons: {
+    enabled: boolean[]; // [Left, Right, Front, Back]
+    color: ColorRGB;
+  };
+  extras: Record<number, boolean>; // ID -> Enabled
+  livery: number;
+  roofLivery: number;
+  windowTint: number;
+  wheelType: number;
+  xenonEnabled: boolean;
+}
+
+export interface VehicleMods {
+  // Standard Mods (0-49)
+  spoilers?: number;
+  frontBumper?: number;
+  rearBumper?: number;
+  sideSkirt?: number;
+  exhaust?: number;
+  frame?: number;
+  grille?: number;
+  hood?: number;
+  fender?: number;
+  rightFender?: number;
+  roof?: number;
+  engine?: number;
+  brakes?: number;
+  transmission?: number;
+  horns?: number;
+  suspension?: number;
+  armor?: number;
+  nitrous?: number;
+  turbo?: boolean;
+  subwoofer?: boolean;
+  tyreSmoke?: boolean;
+  hydraulics?: boolean;
+  xenon?: boolean;
+  frontWheels?: number;
+  backWheels?: number;
+  customTiresF?: boolean;
+  customTiresR?: boolean;
+  plateHolder?: number;
+  vanityPlate?: number;
+  trimA?: number;
+  ornaments?: number;
+  dashboard?: number;
+  dial?: number;
+  doorSpeaker?: number;
+  seats?: number;
+  steeringWheel?: number;
+  shifterLeavers?: number;
+  aPlate?: number;
+  speakers?: number;
+  trunk?: number;
+  hydrolic?: number;
+  engineBlock?: number;
+  airFilter?: number;
+  struts?: number;
+  archCover?: number;
+  aerials?: number;
+  trimB?: number;
+  tank?: number;
+  windows?: number;
+  doorR?: number;
+  liveryMod?: number;
+  lightbar?: number;
+
+  // Special
+  driftTyres?: boolean;
+  bulletProofTyres?: boolean;
+}
+
+export interface VehicleData {
+  model: number;
+  health: VehicleHealth;
+  cosmetics: VehicleCosmetics;
+  mods: VehicleMods;
+}
+
+// -----------------------------------------------------------------------------
+// Mapping Helpers
+// -----------------------------------------------------------------------------
+
+// Map friendly names to Mod ID indices
+const MOD_MAP: Record<keyof VehicleMods, number | null> = {
+  spoilers: 0, frontBumper: 1, rearBumper: 2, sideSkirt: 3, exhaust: 4, frame: 5, grille: 6, hood: 7,
+  fender: 8, rightFender: 9, roof: 10, engine: 11, brakes: 12, transmission: 13, horns: 14,
+  suspension: 15, armor: 16, nitrous: 17, turbo: 18, subwoofer: 19, tyreSmoke: 20, hydraulics: 21,
+  xenon: 22, frontWheels: 23, backWheels: 24, plateHolder: 25, vanityPlate: 26, trimA: 27,
+  ornaments: 28, dashboard: 29, dial: 30, doorSpeaker: 31, seats: 32, steeringWheel: 33,
+  shifterLeavers: 34, aPlate: 35, speakers: 36, trunk: 37, hydrolic: 38, engineBlock: 39,
+  airFilter: 40, struts: 41, archCover: 42, aerials: 43, trimB: 44, tank: 45, windows: 46,
+  doorR: 47, liveryMod: 48, lightbar: 49,
+  // Toggles / Specials handled separately
+  customTiresF: null, customTiresR: null, driftTyres: null, bulletProofTyres: null
+};
+
+// -----------------------------------------------------------------------------
+// Service Class
+// -----------------------------------------------------------------------------
+
 export class VehicleProperties {
-  /**
-   * Get all properties of a vehicle (mods, colors, health, etc.)
-   */
-  static get(vehicle: number): VehicleProps {
-    if (!DoesEntityExist(vehicle)) return {};
 
-    const [colorPrimary, colorSecondary] = GetVehicleColours(vehicle);
-    const [pearlescentColor, wheelColor] = GetVehicleExtraColours(vehicle);
-    const [paintType1] = GetVehicleModColor_1(vehicle);
-    const [paintType2] = GetVehicleModColor_2(vehicle);
+  static get(vehicle: number): VehicleData | null {
+    if (!DoesEntityExist(vehicle)) return null;
 
-    // Custom primary/secondary colors (RGB)
-    let color1: number | number[] = colorPrimary;
-    let color2: number | number[] = colorSecondary;
-    if (GetIsVehiclePrimaryColourCustom(vehicle)) {
-      color1 = GetVehicleCustomPrimaryColour(vehicle);
-    }
-    if (GetIsVehicleSecondaryColourCustom(vehicle)) {
-      color2 = GetVehicleCustomSecondaryColour(vehicle);
-    }
+    // --- Colors ---
+    const [colorPri, colorSec] = GetVehicleColours(vehicle);
+    const [pearl, wheelCol] = GetVehicleExtraColours(vehicle);
 
-    // Extras
-    const extras: Record<number | string, 0 | 1> = {};
-    for (let i = 1; i <= 15; i++) {
+    let primary: number | ColorRGB = colorPri;
+    let secondary: number | ColorRGB = colorSec;
+
+    if (GetIsVehiclePrimaryColourCustom(vehicle)) primary = GetVehicleCustomPrimaryColour(vehicle) as ColorRGB;
+    if (GetIsVehicleSecondaryColourCustom(vehicle)) secondary = GetVehicleCustomSecondaryColour(vehicle) as ColorRGB;
+
+    // --- Neons ---
+    const neons = {
+      enabled: [0, 1, 2, 3].map(i => IsVehicleNeonLightEnabled(vehicle, i)),
+      color: GetVehicleNeonLightsColour(vehicle) as ColorRGB
+    };
+
+    // --- Extras ---
+    const extras: Record<number, boolean> = {};
+    for (let i = 0; i <= 20; i++) {
       if (DoesExtraExist(vehicle, i)) {
-        extras[i] = IsVehicleExtraTurnedOn(vehicle, i) ? 0 : 1;
+        extras[i] = IsVehicleExtraTurnedOn(vehicle, i);
       }
     }
 
-    // Neons
-    const neonEnabled: boolean[] = [];
-    for (let i = 0; i < 4; i++) {
-      neonEnabled[i] = IsVehicleNeonLightEnabled(vehicle, i);
-    }
-
-    // Damage (Windows, Doors, Tyres)
-    const windows: number[] = [];
-    for (let i = 0; i < 8; i++) {
-      if (!IsVehicleWindowIntact(vehicle, i)) windows.push(i);
-    }
-
-    const doors: number[] = [];
-    for (let i = 0; i < 6; i++) {
-      if (IsVehicleDoorDamaged(vehicle, i)) doors.push(i);
-    }
-
-    const tyres: Record<number | string, 1 | 2> = {};
-    for (let i = 0; i < 8; i++) {
+    // --- Health ---
+    const tires: Record<number, { burst: boolean; completely: boolean }> = {};
+    for (let i = 0; i < 7; i++) {
       if (IsVehicleTyreBurst(vehicle, i, false)) {
-        tyres[i] = IsVehicleTyreBurst(vehicle, i, true) ? 2 : 1;
+        tires[i] = {burst: true, completely: IsVehicleTyreBurst(vehicle, i, true)};
       }
     }
 
-    const modCustomTiresF = GetVehicleModVariation(vehicle, 23);
-    const modCustomTiresR = GetVehicleModVariation(vehicle, 24);
+    // --- Mods ---
+    const mods: any = {};
+    for (const [key, index] of Object.entries(MOD_MAP)) {
+      if (index === null) continue;
+      if (index >= 17 && index <= 22) {
+        mods[key] = IsToggleModOn(vehicle, index);
+      } else {
+        mods[key] = GetVehicleMod(vehicle, index);
+      }
+    }
 
+    mods.customTiresF = GetVehicleModVariation(vehicle, 23);
+    mods.customTiresR = GetVehicleModVariation(vehicle, 24);
+    mods.bulletProofTyres = !GetVehicleTyresCanBurst(vehicle);
+
+    if (GetGameBuildNumber() >= 2372) {
+      mods.driftTyres = GetDriftTyresEnabled(vehicle);
+    }
+
+    // --- Construction ---
     return {
       model: GetEntityModel(vehicle),
-      plate: GetVehicleNumberPlateText(vehicle).trim(),
-      plateIndex: GetVehicleNumberPlateTextIndex(vehicle),
-      bodyHealth: Math.round(GetVehicleBodyHealth(vehicle)),
-      engineHealth: Math.round(GetVehicleEngineHealth(vehicle)),
-      tankHealth: Math.round(GetVehiclePetrolTankHealth(vehicle)),
-      fuelLevel: Math.round(GetVehicleFuelLevel(vehicle)),
-      oilLevel: Math.round(GetVehicleOilLevel(vehicle)),
-      dirtLevel: Math.round(GetVehicleDirtLevel(vehicle)),
-      paintType1,
-      paintType2,
-      color1,
-      color2,
-      pearlescentColor,
-      wheelColor,
-      interiorColor: GetVehicleInteriorColor(vehicle),
-      dashboardColor: GetVehicleDashboardColour(vehicle),
-      wheelWidth: GetVehicleWheelWidth(vehicle),
-      wheelSize: GetVehicleWheelSize(vehicle),
-      wheels: GetVehicleWheelType(vehicle),
-      windowTint: GetVehicleWindowTint(vehicle),
-      xenonColor: GetVehicleXenonLightsColor(vehicle),
-      neonEnabled,
-      neonColor: GetVehicleNeonLightsColour(vehicle),
-      extras,
-      tyreSmokeColor: GetVehicleTyreSmokeColor(vehicle),
-      modSpoilers: GetVehicleMod(vehicle, 0),
-      modFrontBumper: GetVehicleMod(vehicle, 1),
-      modRearBumper: GetVehicleMod(vehicle, 2),
-      modSideSkirt: GetVehicleMod(vehicle, 3),
-      modExhaust: GetVehicleMod(vehicle, 4),
-      modFrame: GetVehicleMod(vehicle, 5),
-      modGrille: GetVehicleMod(vehicle, 6),
-      modHood: GetVehicleMod(vehicle, 7),
-      modFender: GetVehicleMod(vehicle, 8),
-      modRightFender: GetVehicleMod(vehicle, 9),
-      modRoof: GetVehicleMod(vehicle, 10),
-      modEngine: GetVehicleMod(vehicle, 11),
-      modBrakes: GetVehicleMod(vehicle, 12),
-      modTransmission: GetVehicleMod(vehicle, 13),
-      modHorns: GetVehicleMod(vehicle, 14),
-      modSuspension: GetVehicleMod(vehicle, 15),
-      modArmor: GetVehicleMod(vehicle, 16),
-      modNitrous: GetVehicleMod(vehicle, 17),
-      modTurbo: IsToggleModOn(vehicle, 18),
-      modSubwoofer: IsToggleModOn(vehicle, 19),
-      modSmokeEnabled: IsToggleModOn(vehicle, 20),
-      modHydraulics: IsToggleModOn(vehicle, 21),
-      modXenon: IsToggleModOn(vehicle, 22),
-      modFrontWheels: GetVehicleMod(vehicle, 23),
-      modBackWheels: GetVehicleMod(vehicle, 24),
-      modCustomTiresF,
-      modCustomTiresR,
-      modPlateHolder: GetVehicleMod(vehicle, 25),
-      modVanityPlate: GetVehicleMod(vehicle, 26),
-      modTrimA: GetVehicleMod(vehicle, 27),
-      modOrnaments: GetVehicleMod(vehicle, 28),
-      modDashboard: GetVehicleMod(vehicle, 29),
-      modDial: GetVehicleMod(vehicle, 30),
-      modDoorSpeaker: GetVehicleMod(vehicle, 31),
-      modSeats: GetVehicleMod(vehicle, 32),
-      modSteeringWheel: GetVehicleMod(vehicle, 33),
-      modShifterLeavers: GetVehicleMod(vehicle, 34),
-      modAPlate: GetVehicleMod(vehicle, 35),
-      modSpeakers: GetVehicleMod(vehicle, 36),
-      modTrunk: GetVehicleMod(vehicle, 37),
-      modHydrolic: GetVehicleMod(vehicle, 38),
-      modEngineBlock: GetVehicleMod(vehicle, 39),
-      modAirFilter: GetVehicleMod(vehicle, 40),
-      modStruts: GetVehicleMod(vehicle, 41),
-      modArchCover: GetVehicleMod(vehicle, 42),
-      modAerials: GetVehicleMod(vehicle, 43),
-      modTrimB: GetVehicleMod(vehicle, 44),
-      modTank: GetVehicleMod(vehicle, 45),
-      modWindows: GetVehicleMod(vehicle, 46),
-      modDoorR: GetVehicleMod(vehicle, 47),
-      modLivery: GetVehicleMod(vehicle, 48),
-      modRoofLivery: GetVehicleRoofLivery(vehicle),
-      modLightbar: GetVehicleMod(vehicle, 49),
-      livery: GetVehicleLivery(vehicle),
-      windows,
-      doors,
-      tyres,
-      bulletProofTyres: GetVehicleTyresCanBurst(vehicle) === false,
-      driftTyres: GetGameBuildNumber() >= 2372 ? GetDriftTyresEnabled(vehicle) : false,
+      health: {
+        body: Math.round(GetVehicleBodyHealth(vehicle)),
+        engine: Math.round(GetVehicleEngineHealth(vehicle)),
+        tank: Math.round(GetVehiclePetrolTankHealth(vehicle)),
+        fuel: Math.round(GetVehicleFuelLevel(vehicle)),
+        oil: Math.round(GetVehicleOilLevel(vehicle)),
+        dirt: Math.round(GetVehicleDirtLevel(vehicle)),
+        tires,
+        windows: [0, 1, 2, 3, 4, 5, 6, 7].filter(i => !IsVehicleWindowIntact(vehicle, i)),
+        doors: [0, 1, 2, 3, 4, 5].filter(i => IsVehicleDoorDamaged(vehicle, i))
+      },
+      cosmetics: {
+        plate: {
+          text: GetVehicleNumberPlateText(vehicle).trim(),
+          index: GetVehicleNumberPlateTextIndex(vehicle)
+        },
+        paint: {
+          primary: {type: GetVehicleModColor_1(vehicle)[0], color: primary},
+          secondary: {type: GetVehicleModColor_2(vehicle)[0], color: secondary},
+          pearlescent: pearl,
+          wheel: wheelCol,
+          interior: GetVehicleInteriorColor(vehicle),
+          dashboard: GetVehicleDashboardColour(vehicle),
+          xenon: GetVehicleXenonLightsColor(vehicle),
+          tyreSmoke: GetVehicleTyreSmokeColor(vehicle) as ColorRGB
+        },
+        neons,
+        extras,
+        livery: GetVehicleLivery(vehicle),
+        roofLivery: GetVehicleRoofLivery(vehicle),
+        windowTint: GetVehicleWindowTint(vehicle),
+        wheelType: GetVehicleWheelType(vehicle),
+        xenonEnabled: IsToggleModOn(vehicle, 22)
+      },
+      mods
     };
   }
 
-  /**
-   * Apply properties to a vehicle
-   */
-  static set(vehicle: number, props: VehicleProps, fixVehicle: boolean = false): void {
+  static set(vehicle: number, data: VehicleData, options: { autoRepair?: boolean } = {}): void {
     if (!DoesEntityExist(vehicle)) return;
 
     SetVehicleModKit(vehicle, 0);
 
-    if (props.wheels !== undefined) {
-      SetVehicleWheelType(vehicle, props.wheels);
+    // --- Cosmetics ---
+    const c = data.cosmetics;
+
+    if (c.plate) {
+      SetVehicleNumberPlateText(vehicle, c.plate.text);
+      SetVehicleNumberPlateTextIndex(vehicle, c.plate.index);
     }
 
-    if (props.plate) SetVehicleNumberPlateText(vehicle, props.plate);
-    if (props.plateIndex !== undefined) SetVehicleNumberPlateTextIndex(vehicle, props.plateIndex);
-    if (props.bodyHealth !== undefined) SetVehicleBodyHealth(vehicle, props.bodyHealth + 0.0);
-    if (props.engineHealth !== undefined) SetVehicleEngineHealth(vehicle, props.engineHealth + 0.0);
-    if (props.fuelLevel !== undefined) SetVehicleFuelLevel(vehicle, props.fuelLevel + 0.0);
-    if (props.dirtLevel !== undefined) SetVehicleDirtLevel(vehicle, props.dirtLevel + 0.0);
+    // Colors Logic
+    // We must check both primary and secondary to safely call SetVehicleColours
+    // If RGB is used, we use specific natives.
+    const pPaint = c.paint.primary;
+    const sPaint = c.paint.secondary;
 
-    // Colors
-    if (props.color1 !== undefined) {
-      if (typeof props.color1 === 'number') {
+    if (typeof pPaint.color === 'number' && typeof sPaint.color === 'number') {
+      SetVehicleColours(vehicle, pPaint.color, sPaint.color);
+    } else {
+      // Mixed or full RGB
+      if (Array.isArray(pPaint.color)) {
+        SetVehicleCustomPrimaryColour(vehicle, pPaint.color[0], pPaint.color[1], pPaint.color[2]);
+      } else if (typeof pPaint.color === 'number') {
         ClearVehicleCustomPrimaryColour(vehicle);
-        SetVehicleColours(vehicle, props.color1, props.color2 as number || 0);
-      } else {
-        SetVehicleCustomPrimaryColour(vehicle, props.color1[0], props.color1[1], props.color1[2]);
+        SetVehicleColours(vehicle, pPaint.color, typeof sPaint.color === 'number' ? sPaint.color : 0);
       }
-    }
-    if (props.color2 !== undefined) {
-      if (typeof props.color2 === 'number') {
+
+      if (Array.isArray(sPaint.color)) {
+        SetVehicleCustomSecondaryColour(vehicle, sPaint.color[0], sPaint.color[1], sPaint.color[2]);
+      } else if (typeof sPaint.color === 'number') {
         ClearVehicleCustomSecondaryColour(vehicle);
-        SetVehicleColours(vehicle, (props.color1 as number) || 0, props.color2);
-      } else {
-        SetVehicleCustomSecondaryColour(vehicle, props.color2[0], props.color2[1], props.color2[2]);
+        // Re-apply primary if it was an index, to prevent overwrite
+        const pIndex = typeof pPaint.color === 'number' ? pPaint.color : 0;
+        SetVehicleColours(vehicle, pIndex, sPaint.color);
       }
     }
 
-    if (props.paintType1 !== undefined) SetVehicleModColor_1(vehicle, props.paintType1, 0, props.pearlescentColor || 0);
-    if (props.paintType2 !== undefined) SetVehicleModColor_2(vehicle, props.paintType2, 0);
-    if (props.pearlescentColor !== undefined || props.wheelColor !== undefined) {
-      const [curPearl, curWheel] = GetVehicleExtraColours(vehicle);
-      SetVehicleExtraColours(vehicle, props.pearlescentColor ?? curPearl, props.wheelColor ?? curWheel);
-    }
+    SetVehicleModColor_1(vehicle, pPaint.type, 0, c.paint.pearlescent);
+    SetVehicleModColor_2(vehicle, sPaint.type, 0);
+    SetVehicleExtraColours(vehicle, c.paint.pearlescent, c.paint.wheel);
 
-    // Mods
-    const setMod = (id: number, val?: number) => { if (val !== undefined) SetVehicleMod(vehicle, id, val, false); };
-    const setToggle = (id: number, val?: boolean) => { if (val !== undefined) ToggleVehicleMod(vehicle, id, val); };
-
-    setMod(0, props.modSpoilers);
-    setMod(1, props.modFrontBumper);
-    setMod(2, props.modRearBumper);
-    setMod(3, props.modSideSkirt);
-    setMod(4, props.modExhaust);
-    setMod(5, props.modFrame);
-    setMod(6, props.modGrille);
-    setMod(7, props.modHood);
-    setMod(8, props.modFender);
-    setMod(9, props.modRightFender);
-    setMod(10, props.modRoof);
-    setMod(11, props.modEngine);
-    setMod(12, props.modBrakes);
-    setMod(13, props.modTransmission);
-    setMod(14, props.modHorns);
-    setMod(15, props.modSuspension);
-    setMod(16, props.modArmor);
-    setMod(17, props.modNitrous);
-    setToggle(18, props.modTurbo);
-    setToggle(19, props.modSubwoofer);
-    setToggle(20, props.modSmokeEnabled);
-    setToggle(21, props.modHydraulics);
-    setToggle(22, props.modXenon);
-
-    if (props.oilLevel !== undefined) SetVehicleOilLevel(vehicle, props.oilLevel + 0.0);
-    if (props.xenonColor !== undefined) SetVehicleXenonLightsColor(vehicle, props.xenonColor);
-    if (props.windowTint !== undefined) SetVehicleWindowTint(vehicle, props.windowTint);
-
-    // Extras
-    if (props.extras) {
-      for (const [id, state] of Object.entries(props.extras)) {
-        SetVehicleExtra(vehicle, Number(id), state === 1); // 1 is disable in native, but usually 0/1 logic depends on lib
-      }
-    }
-
-    if (props.modFrontWheels !== undefined) {
-      SetVehicleMod(vehicle, 23, props.modFrontWheels, props.modCustomTiresF || false);
-    }
-    if (props.modBackWheels !== undefined) {
-      SetVehicleMod(vehicle, 24, props.modBackWheels, props.modCustomTiresR || false);
-    }
-
-    if (GetGameBuildNumber() >= 2372 && props.driftTyres !== undefined) {
-      SetDriftTyresEnabled(vehicle, props.driftTyres);
-    }
+    if (c.paint.tyreSmoke) SetVehicleTyreSmokeColor(vehicle, ...c.paint.tyreSmoke);
+    SetVehicleXenonLightsColor(vehicle, c.paint.xenon);
+    SetVehicleInteriorColor(vehicle, c.paint.interior);
+    SetVehicleDashboardColour(vehicle, c.paint.dashboard);
+    SetVehicleWindowTint(vehicle, c.windowTint);
+    SetVehicleWheelType(vehicle, c.wheelType);
 
     // Neons
-    if (props.neonEnabled) {
-      props.neonEnabled.forEach((enabled, index) => SetVehicleNeonLightEnabled(vehicle, index, enabled));
-    }
-    if (props.neonColor) SetVehicleNeonLightsColour(vehicle, props.neonColor[0], props.neonColor[1], props.neonColor[2]);
+    c.neons.enabled.forEach((state, i) => SetVehicleNeonLightEnabled(vehicle, i, state));
+    SetVehicleNeonLightsColour(vehicle, ...c.neons.color);
 
-    if (fixVehicle) SetVehicleFixed(vehicle);
+    // Extras (Native: 0 = ON, 1 = OFF)
+    for (const [id, enabled] of Object.entries(c.extras)) {
+      SetVehicleExtra(vehicle, Number(id), !enabled);
+    }
+
+    // Livery
+    SetVehicleLivery(vehicle, c.livery);
+    SetVehicleRoofLivery(vehicle, c.roofLivery);
+
+    // --- Mods ---
+    const m = data.mods;
+    for (const [key, index] of Object.entries(MOD_MAP)) {
+      const value = m[key as keyof VehicleMods];
+      if (index === null || value === undefined) continue;
+
+      if (typeof value === 'boolean') {
+        ToggleVehicleMod(vehicle, index, value);
+      } else {
+        // Check for custom tires variation
+        let variation = false;
+        if (index === 23) variation = !!m.customTiresF;
+        if (index === 24) variation = !!m.customTiresR;
+        SetVehicleMod(vehicle, index, value, variation);
+      }
+    }
+
+    if (m.bulletProofTyres !== undefined) SetVehicleTyresCanBurst(vehicle, !m.bulletProofTyres);
+    if (GetGameBuildNumber() >= 2372 && m.driftTyres !== undefined) SetDriftTyresEnabled(vehicle, m.driftTyres);
+
+    // --- Health ---
+    const h = data.health;
+    if (options.autoRepair) {
+      SetVehicleFixed(vehicle);
+      SetVehicleDeformationFixed(vehicle);
+      SetVehicleUndriveable(vehicle, false);
+    }
+
+    SetVehicleBodyHealth(vehicle, h.body + 0.0);
+    SetVehicleEngineHealth(vehicle, h.engine + 0.0);
+    SetVehiclePetrolTankHealth(vehicle, h.tank + 0.0);
+    SetVehicleFuelLevel(vehicle, h.fuel + 0.0);
+    SetVehicleOilLevel(vehicle, h.oil + 0.0);
+    SetVehicleDirtLevel(vehicle, h.dirt + 0.0);
+
+    // Apply Damage
+    h.windows.forEach(w => RemoveVehicleWindow(vehicle, w));
+    h.doors.forEach(d => SetVehicleDoorBroken(vehicle, d, true));
+    for (const [id, state] of Object.entries(h.tires)) {
+      if (state.completely) SetVehicleTyreBurst(vehicle, Number(id), true, 1000.0);
+      else if (state.burst) SetVehicleTyreBurst(vehicle, Number(id), false, 1000.0);
+    }
   }
 }

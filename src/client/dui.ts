@@ -1,4 +1,5 @@
-import { Logger } from '../common/logger';
+// src/client/dui.ts
+import {Logger} from '../common';
 
 export interface DuiOptions {
   url: string;
@@ -7,152 +8,216 @@ export interface DuiOptions {
   debug?: boolean;
 }
 
+export interface DuiTexture {
+  dict: string;
+  txt: string;
+}
+
 export class Dui {
-  private static instances: Map<string, Dui> = new Map();
-  private static currentId = 0;
-  private static resourceName = GetCurrentResourceName();
+  // Registry to track active instances for cleanup
+  private static registry = new Set<Dui>();
   private static initialized = false;
+  private static readonly RESOURCE_NAME = GetCurrentResourceName();
 
-  public readonly id: string;
-  private debug: boolean;
+  // Unique ID counter
+  private static uniqueIdCounter = 0;
 
-  public url: string;
-  public duiObject: number;
-  public duiHandle: string;
-  public runtimeTxd: number;
-  public txdObject: number;
-  public dictName: string;
-  public txtName: string;
+  // Private backing fields (Encapsulation)
+  private readonly _id: string;
+  private readonly _debug: boolean;
+  private _url: string;
 
-  constructor(data: DuiOptions) {
-    // Ensure the cleanup listener is registered once
-    if (!Dui.initialized) {
-      Dui.init();
-    }
+  // Native Handles (Private to prevent external tampering)
+  private _duiObject: number | null = null;
+  private _duiHandle: string | null = null;
+  private _runtimeTxd: number | null = null;
 
-    const time = GetGameTimer();
-    // Unique ID generation matching ox_lib style
-    this.id = `${Dui.resourceName}_${time}_${Dui.currentId}`;
-    Dui.currentId++;
+  // Texture identifiers
+  private readonly _dictName: string;
+  private readonly _txtName: string;
 
-    this.dictName = `kj_lib_dui_dict_${this.id}`;
-    this.txtName = `kj_lib_dui_txt_${this.id}`;
+  // ---------------------------------------------------------------------------
+  // Getters
+  // ---------------------------------------------------------------------------
 
-    // 1. Create the Browser
-    this.duiObject = CreateDui(data.url, data.width, data.height);
-    this.duiHandle = GetDuiHandle(this.duiObject);
-
-    // 2. Create the Runtime Texture container (TXD)
-    this.runtimeTxd = CreateRuntimeTxd(this.dictName);
-
-    // 3. Link the Browser handle to a Texture inside that TXD
-    this.txdObject = CreateRuntimeTextureFromDuiHandle(this.runtimeTxd, this.txtName, this.duiHandle);
-
-    this.debug = data.debug || false;
-    this.url = data.url;
-
-    // Track the instance
-    Dui.instances.set(this.id, this);
-
-    if (this.debug) {
-      Logger.debug(`Dui ${this.id} created`);
-    }
+  public get id(): string {
+    return this._id;
   }
 
-  /**
-   * Remove the DUI object and cleanup textures
-   */
-  remove() {
-    // Navigate to blank before destroying to stop audio/scripts immediately
-    SetDuiUrl(this.duiObject, 'about:blank');
-    DestroyDui(this.duiObject);
-
-    // Note: Runtime TXDs are usually cleaned up by the engine on resource stop,
-    // but explicit cleanup of the DUI object is strictly required.
-
-    Dui.instances.delete(this.id);
-
-    if (this.debug) {
-      Logger.debug(`Dui ${this.id} removed`);
-    }
+  public get url(): string {
+    return this._url;
   }
 
-  /**
-   * Update the URL of the DUI
-   */
-  setUrl(url: string) {
-    this.url = url;
-    SetDuiUrl(this.duiObject, url);
+  public get dictName(): string {
+    return this._dictName;
+  }
 
-    if (this.debug) {
-      Logger.debug(`Dui ${this.id} url set to ${url}`);
+  public get txtName(): string {
+    return this._txtName;
+  }
+
+  public get isValid(): boolean {
+    return this._duiObject !== null;
+  }
+
+  constructor(options: DuiOptions) {
+    Dui.ensureLifecycleListener();
+
+    // Generate unique identifier
+    const timestamp = GetGameTimer();
+    this._id = `${Dui.RESOURCE_NAME}_${timestamp}_${Dui.uniqueIdCounter++}`;
+
+    this._url = options.url;
+    this._debug = options.debug ?? false;
+
+    // Define texture names
+    this._dictName = `kj_lib_dict_${this._id}`;
+    this._txtName = `kj_lib_txt_${this._id}`;
+
+    try {
+      this.initializeNativeDui(options.width, options.height);
+      Dui.registry.add(this);
+
+      if (this._debug) {
+        Logger.debug(`[DUI] Created instance ${this._id} pointing to ${this._url}`);
+      }
+    } catch (error) {
+      Logger.error(`[DUI] Failed to create Dui instance: ${error}`);
+      this.destroy(); // Ensure partial cleanup if init fails
+      throw error;
     }
   }
 
-  /**
-   * Send a JSON message to the browser (window.addEventListener('message'))
-   */
-  sendMessage(message: object) {
-    const jsonString = JSON.stringify(message);
-    SendDuiMessage(this.duiObject, jsonString);
+  // ---------------------------------------------------------------------------
+  // Core Logic
+  // ---------------------------------------------------------------------------
 
-    if (this.debug) {
-      Logger.debug(`Dui ${this.id} message sent:`, JSON.stringify(message, null, 2));
+  private initializeNativeDui(width: number, height: number) {
+    // 1. Create the Browser Object
+    const duiObject = CreateDui(this._url, width, height);
+    if (!duiObject) throw new Error('CreateDui native returned 0/false');
+
+    this._duiObject = duiObject;
+    this._duiHandle = GetDuiHandle(duiObject);
+
+    // 2. Create Runtime Texture Dictionary (TXD)
+    // Note: Creates a new TXD wrapper in memory
+    this._runtimeTxd = CreateRuntimeTxd(this._dictName);
+    if (!this._runtimeTxd) throw new Error('CreateRuntimeTxd failed');
+
+    // 3. Bind the Dui Handle to a Texture inside the TXD
+    // This effectively "paints" the browser onto a texture we can use in DrawSprite/DrawMarker
+    CreateRuntimeTextureFromDuiHandle(this._runtimeTxd, this._txtName, this._duiHandle);
+  }
+
+  /**
+   * Completely destroys the DUI instance, textures, and removes it from the registry.
+   */
+  public destroy() {
+    if (!this.isValid) return; // Already destroyed
+
+    // 1. Stop audio/rendering immediately
+    if (this._duiObject) {
+      SetDuiUrl(this._duiObject, 'about:blank');
+      DestroyDui(this._duiObject);
+      this._duiObject = null;
+      this._duiHandle = null;
+    }
+
+    // 2. Clean up graphics memory (Important for repeated creation/destruction)
+    // Note: There isn't a direct "DestroyRuntimeTxd", but forcing the texture data to clear helps.
+    // FiveM engine handles the actual memory pool of the RuntimeTxd, but we ensure we drop references.
+    this._runtimeTxd = null;
+
+    // 3. Registry cleanup
+    Dui.registry.delete(this);
+
+    if (this._debug) {
+      Logger.debug(`[DUI] Destroyed instance ${this._id}`);
     }
   }
 
   /**
-   * Inject mouse movement
+   * Helper for FiveM natives requiring texture dict/name pairs (e.g., DrawSprite).
    */
-  sendMouseMove(x: number, y: number) {
-    SendDuiMouseMove(this.duiObject, x, y);
+  public getTexture(): DuiTexture | null {
+    if (!this.isValid) return null;
+    return {dict: this._dictName, txt: this._txtName};
   }
 
-  /**
-   * Inject mouse click down
-   */
-  sendMouseDown(button: 'left' | 'middle' | 'right') {
-    SendDuiMouseDown(this.duiObject, button);
+  public setUrl(newUrl: string) {
+    if (!this.ensureValid()) return;
+
+    this._url = newUrl;
+    SetDuiUrl(this._duiObject!, newUrl);
+
+    if (this._debug) Logger.debug(`[DUI] ${this._id} URL updated`);
   }
 
-  /**
-   * Inject mouse click up
-   */
-  sendMouseUp(button: 'left' | 'middle' | 'right') {
-    SendDuiMouseUp(this.duiObject, button);
+  public sendMessage(data: Record<string, any>) {
+    if (!this.ensureValid()) return;
+
+    const payload = JSON.stringify(data);
+    SendDuiMessage(this._duiObject!, payload);
+
+    if (this._debug) {
+      Logger.debug(`[DUI] Message sent to ${this._id}`, payload);
+    }
   }
 
-  /**
-   * Inject scroll wheel
-   */
-  sendMouseWheel(deltaX: number, deltaY: number) {
-    SendDuiMouseWheel(this.duiObject, deltaY, deltaX);
+  // ---------------------------------------------------------------------------
+  // Input Injection
+  // ---------------------------------------------------------------------------
+
+  public sendMouseMove(x: number, y: number) {
+    if (this.ensureValid()) SendDuiMouseMove(this._duiObject!, x, y);
   }
 
-  /**
-   * Helper to return texture data for natives like DrawSprite
-   */
-  getTexture() {
-    return { txd: this.dictName, txn: this.txtName };
+  public sendMouseDown(button: 'left' | 'middle' | 'right') {
+    if (this.ensureValid()) SendDuiMouseDown(this._duiObject!, button);
   }
 
-  /**
-   * Static initialization to handle resource stopping
-   */
-  private static init() {
-    Dui.initialized = true;
+  public sendMouseUp(button: 'left' | 'middle' | 'right') {
+    if (this.ensureValid()) SendDuiMouseUp(this._duiObject!, button);
+  }
+
+  public sendMouseScroll(deltaY: number, deltaX: number = 0) {
+    if (this.ensureValid()) SendDuiMouseWheel(this._duiObject!, deltaY, deltaX);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Internal Helpers
+  // ---------------------------------------------------------------------------
+
+  private ensureValid(): boolean {
+    if (!this.isValid) {
+      Logger.error(`[DUI] Attempted to interact with destroyed DUI instance ${this._id}`);
+      return false;
+    }
+    return true;
+  }
+
+  private static ensureLifecycleListener() {
+    if (this.initialized) return;
+    this.initialized = true;
 
     on('onResourceStop', (resource: string) => {
-      if (resource !== Dui.resourceName) return;
+      if (resource !== this.RESOURCE_NAME) return;
 
-      Dui.instances.forEach((dui) => {
+      Logger.info(`[DUI] Cleaning up ${this.registry.size} active instances...`);
+
+      // Create a copy to safely iterate while modifying the Set inside destroy()
+      const activeInstances = Array.from(this.registry);
+
+      for (const dui of activeInstances) {
         try {
-          dui.remove();
-        } catch (e) {
-          // Ignore errors during cleanup
+          dui.destroy();
+        } catch (err) {
+          Logger.error(`[DUI] Error during cleanup of ${dui.id}: ${err}`);
         }
-      });
-      Dui.instances.clear();
+      }
+
+      this.registry.clear();
     });
   }
 }

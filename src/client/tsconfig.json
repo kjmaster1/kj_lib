@@ -3,5 +3,8 @@
   "compilerOptions": {
     "types": ["@citizenfx/client"]
   },
-  "include": ["./"]
+  "include": [
+    "./",
+    "../common"
+  ]
 }

@@ -1,155 +1,174 @@
-export interface GridEntry {
+// src/common/grid.ts
+import {Vector3} from "./utils";
+
+export interface GridItem {
   id: string;
-  coords: number[]; // [x, y, z]
-  // Dimensions usually derived from zone size or point radius
+  coords: Vector3;
   dimension?: {
-    width: number;  // X-axis spread
-    length: number; // Y-axis spread
+    width: number;  // Radius or Width
+    length: number; // Radius or Length
   };
-  [key: string]: any;
 }
 
-export class Grid {
-  private static mapMinX = -3700;
-  private static mapMinY = -4400;
-  private static mapMaxX = 4500;
-  private static mapMaxY = 8000;
+export class Grid<T extends GridItem> {
+  // Configuration
+  private readonly cellSize: number;
 
-  // Calculate cell sizes (roughly 240x250 units)
-  private static xDelta = (Grid.mapMaxX - Grid.mapMinX) / 34;
-  private static yDelta = (Grid.mapMaxY - Grid.mapMinY) / 50;
+  // Storage: "x,y" -> Map<ItemId, Item>
+  // We use a Map for the bucket content to make removal O(1) instead of O(N)
+  private buckets: Map<string, Map<string, T>> = new Map();
 
-  // The sparse grid: Row -> Column -> Array of Entries
-  private static grid: Record<number, Record<number, GridEntry[]>> = {};
-
-  // Cache for the last query to avoid re-calculating if player hasn't moved cells
-  private static cache = {
-    minX: -999,
-    maxX: -999,
-    minY: -999,
-    maxY: -999,
-    entries: [] as GridEntry[]
+  // Cache for queries
+  private cacheVersion = 0;
+  private lastQuery = {
+    key: '',
+    results: [] as T[],
+    version: -1
   };
 
   /**
-   * Get grid cell indices for a specific coordinate
+   * @param cellSize The size of each grid cell. Default 250.0 (matches approx chunk size)
    */
-  static getCellPosition(x: number, y: number): [number, number] {
-    const cellX = Math.floor((x - this.mapMinX) / this.xDelta);
-    const cellY = Math.floor((y - this.mapMinY) / this.yDelta);
-    return [cellX, cellY];
+  constructor(cellSize: number = 250.0) {
+    this.cellSize = cellSize;
   }
 
   /**
-   * Calculate the range of cells an object covers based on its dimensions
+   * Generates a unique string key for a cell coordinate
    */
-  private static getGridDimensions(x: number, y: number, width: number, length: number) {
-    const minX = Math.floor((x - width - this.mapMinX) / this.xDelta);
-    const maxX = Math.floor((x + width - this.mapMinX) / this.xDelta);
-    const minY = Math.floor((y - length - this.mapMinY) / this.yDelta);
-    const maxY = Math.floor((y + length - this.mapMinY) / this.yDelta);
-    return { minX, maxX, minY, maxY };
+  private getKey(x: number, y: number): string {
+    return `${Math.floor(x / this.cellSize)},${Math.floor(y / this.cellSize)}`;
   }
 
   /**
-   * Add an entry to the grid
+   * Calculates the range of cell keys an item occupies
    */
-  static add(entry: GridEntry) {
-    const width = entry.dimension?.width || 2;
-    const length = entry.dimension?.length || 2;
+  private getCellKeys(item: T): string[] {
+    const width = item.dimension?.width || 0;
+    const length = item.dimension?.length || 0;
 
-    const { minX, maxX, minY, maxY } = this.getGridDimensions(entry.coords[0], entry.coords[1], width, length);
-
-    for (let y = minY; y <= maxY; y++) {
-      if (!this.grid[y]) this.grid[y] = {};
-
-      for (let x = minX; x <= maxX; x++) {
-        if (!this.grid[y][x]) this.grid[y][x] = [];
-        this.grid[y][x].push(entry);
-      }
+    // If item has no dimensions, it only exists in one cell
+    if (width === 0 && length === 0) {
+      return [this.getKey(item.coords.x, item.coords.y)];
     }
 
-    // Invalidate cache when grid changes
-    this.cache.minX = -999;
+    const startX = Math.floor((item.coords.x - width) / this.cellSize);
+    const endX = Math.floor((item.coords.x + width) / this.cellSize);
+    const startY = Math.floor((item.coords.y - length) / this.cellSize);
+    const endY = Math.floor((item.coords.y + length) / this.cellSize);
+
+    const keys: string[] = [];
+    for (let x = startX; x <= endX; x++) {
+      for (let y = startY; y <= endY; y++) {
+        keys.push(`${x},${y}`);
+      }
+    }
+    return keys;
   }
 
   /**
-   * Remove an entry from the grid
+   * Add an item to the grid
    */
-  static remove(entry: GridEntry) {
-    const width = entry.dimension?.width || 2;
-    const length = entry.dimension?.length || 2;
+  public add(item: T): void {
+    const keys = this.getCellKeys(item);
 
-    const { minX, maxX, minY, maxY } = this.getGridDimensions(entry.coords[0], entry.coords[1], width, length);
+    for (const key of keys) {
+      if (!this.buckets.has(key)) {
+        this.buckets.set(key, new Map());
+      }
+      this.buckets.get(key)!.set(item.id, item);
+    }
 
-    for (let y = minY; y <= maxY; y++) {
-      if (!this.grid[y]) continue;
+    this.cacheVersion++;
+  }
 
-      for (let x = minX; x <= maxX; x++) {
-        const cell = this.grid[y][x];
-        if (!cell) continue;
+  /**
+   * Remove an item from the grid
+   */
+  public remove(item: T): void {
+    const keys = this.getCellKeys(item);
 
-        const idx = cell.findIndex(e => e.id === entry.id);
-        if (idx !== -1) {
-          cell.splice(idx, 1);
+    for (const key of keys) {
+      const bucket = this.buckets.get(key);
+      if (bucket) {
+        bucket.delete(item.id);
+        // Cleanup empty buckets to save memory
+        if (bucket.size === 0) {
+          this.buckets.delete(key);
         }
-
-        // Clean up empty cells
-        if (cell.length === 0) delete this.grid[y][x];
       }
-
-      // Clean up empty rows
-      if (Object.keys(this.grid[y]).length === 0) delete this.grid[y];
     }
 
-    this.cache.minX = -999;
+    this.cacheVersion++;
   }
 
   /**
-   * Get all entries in the cells surrounding the coordinate
+   * Update an item's position in the grid.
+   * More efficient than manual remove + add.
    */
-  static getNearby(coords: number[]): GridEntry[] {
-    // We search a box size of 1 delta around the player
-    // This ensures we check the current cell and immediate neighbors
-    const { minX, maxX, minY, maxY } = this.getGridDimensions(coords[0], coords[1], this.xDelta, this.yDelta);
+  public update(item: T): void {
+    this.remove(item);
+    this.add(item);
+  }
 
-    // Return cached result if we are querying the exact same cell range
+  /**
+   * Get all items in the cells surrounding the coordinates.
+   * Includes the cell the point is in, plus immediate neighbors.
+   */
+  public getNearby(coords: Vector3 | number[], rangeMultiplier: number = 1): T[] {
+    const x = Array.isArray(coords) ? coords[0] : coords.x;
+    const y = Array.isArray(coords) ? coords[1] : coords.y;
+
+    // Generate a cache key based on the central cell and version
+    const centerKey = this.getKey(x, y);
+
+    // Check Cache
     if (
-      this.cache.minX === minX &&
-      this.cache.maxX === maxX &&
-      this.cache.minY === minY &&
-      this.cache.maxY === maxY
+      this.lastQuery.key === centerKey &&
+      this.lastQuery.version === this.cacheVersion
     ) {
-      return this.cache.entries;
+      return this.lastQuery.results;
     }
 
-    const nearby: GridEntry[] = [];
-    const seen = new Set<string>(); // Deduplication
+    const cellX = Math.floor(x / this.cellSize);
+    const cellY = Math.floor(y / this.cellSize);
 
-    for (let y = minY; y <= maxY; y++) {
-      const row = this.grid[y];
-      if (!row) continue;
+    const results = new Map<string, T>(); // Use Map to deduplicate items spanning multiple cells
 
-      for (let x = minX; x <= maxX; x++) {
-        const cell = row[x];
-        if (!cell) continue;
+    // Scan neighbor cells
+    for (let cx = cellX - rangeMultiplier; cx <= cellX + rangeMultiplier; cx++) {
+      for (let cy = cellY - rangeMultiplier; cy <= cellY + rangeMultiplier; cy++) {
+        const key = `${cx},${cy}`;
+        const bucket = this.buckets.get(key);
 
-        for (const entry of cell) {
-          if (!seen.has(entry.id)) {
-            seen.add(entry.id);
-            nearby.push(entry);
+        if (bucket) {
+          for (const item of bucket.values()) {
+            results.set(item.id, item);
           }
         }
       }
     }
 
-    // Update Cache
-    this.cache.minX = minX;
-    this.cache.maxX = maxX;
-    this.cache.minY = minY;
-    this.cache.maxY = maxY;
-    this.cache.entries = nearby;
+    const arrayResults = Array.from(results.values());
 
-    return nearby;
+    // Update Cache
+    this.lastQuery = {
+      key: centerKey,
+      results: arrayResults,
+      version: this.cacheVersion
+    };
+
+    return arrayResults;
+  }
+
+  /**
+   * Debug method to see grid stats
+   */
+  public getStats() {
+    return {
+      buckets: this.buckets.size,
+      cacheVersion: this.cacheVersion,
+      cellSize: this.cellSize
+    };
   }
 }

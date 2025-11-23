@@ -1,66 +1,144 @@
 // src/client/cache.ts
-import { Logger } from '../common/logger';
+import {Logger} from '../common';
+
+interface Vector3 {
+  x: number;
+  y: number;
+  z: number;
+}
 
 export class Cache {
-  static ped: number = 0;
-  static playerId: number = 0;
-  static serverId: number = 0;
-  static vehicle: number | false = false;
-  static seat: number | false = false;
-  static coords: number[] = [0, 0, 0];
+  // Singleton instance
+  private static instance: Cache;
 
-  static init() {
-    Cache.playerId = PlayerId();
-    Cache.serverId = GetPlayerServerId(Cache.playerId);
-    Cache.ped = PlayerPedId();
+  // Private backing fields
+  private _ped: number = 0;
+  private _playerId: number = 0;
+  private _serverId: number = 0;
+  private _vehicle: number | null = null;
+  private _seat: number | null = null;
+  private _coords: Vector3 = {x: 0, y: 0, z: 0};
 
-    // Update slow changing data loop
-    setInterval(() => {
-      Cache.ped = PlayerPedId();
-      Cache.serverId = GetPlayerServerId(Cache.playerId);
-
-      // Only update coords if we aren't using a specialized zone system that does it faster
-      const coords = GetEntityCoords(Cache.ped, false);
-      Cache.coords = [coords[0], coords[1], coords[2]];
-    }, 200);
-
-    // Listen for vehicle entry/exit
-    on('gameEventTriggered', (name: string, args: any[]) => {
-      if (name === 'CEventNetworkPlayerEnteredVehicle') {
-        const [_, pedId] = args;
-        if (pedId === Cache.ped) {
-          Cache.vehicle = GetVehiclePedIsIn(Cache.ped, false);
-          Cache.updateSeat();
-        }
-      } else if (name === 'CEventNetworkPlayerLeaveVehicle') {
-        const [_, pedId] = args;
-        if (pedId === Cache.ped) {
-          Cache.vehicle = false;
-          Cache.seat = false;
-        }
-      }
-    });
-
-    Logger.info('Cache initialized');
+  // Public Read-Only Accessors
+  public get ped() {
+    return this._ped;
   }
 
-  private static updateSeat() {
-    if (!Cache.vehicle) {
-      Cache.seat = false;
+  public get playerId() {
+    return this._playerId;
+  }
+
+  public get serverId() {
+    return this._serverId;
+  }
+
+  public get vehicle() {
+    return this._vehicle;
+  }
+
+  public get seat() {
+    return this._seat;
+  }
+
+  public get coords() {
+    return this._coords;
+  }
+
+  private constructor() {
+    this.initializeData();
+    this.startLoops();
+    this.registerEvents();
+    Logger.info('Cache system initialized');
+  }
+
+  public static init() {
+    if (!this.instance) {
+      this.instance = new Cache();
+    }
+    return this.instance;
+  }
+
+  // Accessor for the singleton if needed elsewhere without re-init
+  public static get() {
+    if (!this.instance) throw new Error('Cache not initialized');
+    return this.instance;
+  }
+
+  private initializeData() {
+    this._playerId = PlayerId();
+    this._serverId = GetPlayerServerId(this._playerId);
+    this._ped = PlayerPedId();
+    this.updateSpatialData(); // Get initial coords
+  }
+
+  private startLoops() {
+    // 200ms Polling Loop
+    setInterval(() => {
+      // Ped ID can change (e.g. skin menu, restoring appearance)
+      const newPed = PlayerPedId();
+      if (this._ped !== newPed) {
+        this._ped = newPed;
+      }
+
+      this.updateSpatialData();
+      this.updateVehicleState();
+    }, 200);
+  }
+
+  private updateSpatialData() {
+    const [x, y, z] = GetEntityCoords(this._ped, false);
+    // Update object reference to keep it clean, or mutate if performance is absolute critical
+    // Here we create new object to ensure immutability safety if passed by reference elsewhere
+    this._coords = {x, y, z};
+  }
+
+  private updateVehicleState() {
+    // Check if ped is actually in a vehicle
+    const vehicle = GetVehiclePedIsIn(this._ped, false);
+
+    if (vehicle !== 0) {
+      this._vehicle = vehicle;
+      this.resolveSeat(vehicle);
+    } else {
+      this._vehicle = null;
+      this._seat = null;
+    }
+  }
+
+  private resolveSeat(vehicle: number) {
+    // If we already know the seat and it hasn't changed, skip logic
+    if (this._seat !== null && GetPedInVehicleSeat(vehicle, this._seat) === this._ped) {
       return;
     }
 
-    const model = GetEntityModel(Cache.vehicle);
+    const model = GetEntityModel(vehicle);
     const seatCount = GetVehicleModelNumberOfSeats(model);
 
-    // Driver is -1. Passengers are 0 to (seatCount - 2).
-    // We loop from -1 up to seatCount - 2.
+    // Driver is -1. Passengers are 0 -> seatCount - 2
     for (let i = -1; i < seatCount - 1; i++) {
-      if (GetPedInVehicleSeat(Cache.vehicle, i) === Cache.ped) {
-        Cache.seat = i;
+      if (GetPedInVehicleSeat(vehicle, i) === this._ped) {
+        this._seat = i;
         return;
       }
     }
-    Cache.seat = false;
+
+    // Fallback if not found in standard seats (e.g. bus standing, trunk)
+    this._seat = null;
+  }
+
+  private registerEvents() {
+    // We primarily use the polling loop for vehicle state to handle seat shuffling
+    // and sync issues, but we can use events for immediate response if needed.
+    // However, relying on polling for vehicle/seat ensures we catch 'silent' changes.
+
+    on('gameEventTriggered', (name: string, args: any[]) => {
+      if (name === 'CEventNetworkPlayerEnteredVehicle') {
+        const [targetPed, vehicleId] = args;
+        if (targetPed === this._ped) {
+          this._vehicle = vehicleId;
+          this.resolveSeat(vehicleId);
+        }
+      }
+    });
   }
 }
