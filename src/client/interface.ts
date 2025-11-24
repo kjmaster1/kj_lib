@@ -1,6 +1,7 @@
 // src/client/interface.ts
 import { Logger } from '../common';
 import { Cache } from './cache';
+import {getLocales} from "../common/locale";
 
 // =============================================================================
 // 1. Core Architecture (Reusable NUI Logic)
@@ -557,13 +558,15 @@ const Hud = new HudService();
 Nui.on('init', () => {
   Logger.info('UI Initialized');
 
+  const locales = getLocales();
+
   Nui.send('setLocale', {
     language: 'en',
     ui: {
-      cancel: 'Cancel',
-      close: 'Close',
-      confirm: 'Confirm',
-      more: 'More...'
+      cancel: locales['ui.cancel'] ?? 'Cancel',
+      close: locales['ui.close'] ?? 'Close',
+      confirm: locales['ui.confirm'] ?? 'Confirm',
+      more: locales['ui.more'] ?? 'More...'
     }
   });
 

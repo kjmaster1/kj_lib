@@ -57,6 +57,7 @@
 		"@nativewrappers/fivem": "latest",
 		"@vitejs/plugin-react": "^4.2.0",
 		"dayjs": "^1.11.7",
+		"fast-printf": "^1.6.10",
 		"focus-trap-react": "^9.0.2",
 		"framer-motion": "^8.0.2",
 		"prettier": "^2.7.1",

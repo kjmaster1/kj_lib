@@ -5,6 +5,12 @@ import {Resource} from './resource';
 // Types
 // -----------------------------------------------------------------------------
 
+export type FlattenObjectKeys<T extends Record<string, any>, Key = keyof T> = Key extends string
+  ? T[Key] extends Record<string, unknown>
+    ? `${Key}.${FlattenObjectKeys<T[Key]>}`
+    : `${Key}`
+  : never;
+
 export interface Vector2 {
   x: number;
   y: number;

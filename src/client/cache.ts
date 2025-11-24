@@ -12,6 +12,7 @@ export class Cache {
   private static instance: Cache;
 
   // Private backing fields
+  private _resource: string = '';
   private _ped: number = 0;
   private _playerId: number = 0;
   private _serverId: number = 0;
@@ -20,6 +21,11 @@ export class Cache {
   private _coords: Vector3 = {x: 0, y: 0, z: 0};
 
   // Public Read-Only Accessors
+
+  get resource(): string {
+    return this._resource;
+  }
+
   public get ped() {
     return this._ped;
   }
@@ -65,6 +71,7 @@ export class Cache {
   }
 
   private initializeData() {
+    this._resource = GetCurrentResourceName();
     this._playerId = PlayerId();
     this._serverId = GetPlayerServerId(this._playerId);
     this._ped = PlayerPedId();
