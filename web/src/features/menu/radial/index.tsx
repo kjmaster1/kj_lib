@@ -66,6 +66,7 @@ const RadialMenu: React.FC = () => {
   };
 
   if (!visible) return null;
+  const safeItems = items || [];
 
   return (
     <Transition mounted={visible} transition="fade" duration={150}>
@@ -74,12 +75,12 @@ const RadialMenu: React.FC = () => {
         <Box className={classes.overlay} style={styles} onClick={handleBackgroundClick}>
           <div className={classes.centerPoint} />
 
-          {items.map((item, index) => (
+          {safeItems.map((item, index) => (
             <RadialItem
               key={item.id || index}
               item={item}
               index={index}
-              total={items.length}
+              total={safeItems.length}
               radius={220} // Increased radius for better spacing
               isActive={activeIndex === index}
               // Highlight on hover

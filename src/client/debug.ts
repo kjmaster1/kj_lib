@@ -84,14 +84,20 @@ export class Debug {
             title: 'Personal ID',
             description: 'View your identification card',
             icon: 'id-card',
-            onSelect: () => Logger.debug('Viewed ID')
+            onSelect: () => {
+              Logger.debug('Viewed ID');
+              Interface.hideContext();
+            }
           },
           {
             title: 'Vehicle Actions',
             description: 'Lock/Unlock, Engine',
             icon: 'car',
             arrow: true,
-            onSelect: () => Logger.debug('Opened Vehicle Actions')
+            onSelect: () => {
+              Logger.debug('Opened Vehicle Actions');
+              Interface.hideContext();
+            }
           },
           {
             title: 'Disabled Item',
@@ -109,12 +115,18 @@ export class Debug {
         id: 'test_list_menu',
         title: 'Vehicle Spawner',
         position: 'top-right',
-        onSelected: (selected: number, scrollIndex?: number, args?: any) => {
-          Logger.debug(`Selected: ${selected}`, args);
+        onSelected: (selected: number, scrollIndex?: number, args?: unknown, checked?: boolean) => {
+          Logger.debug(`Changed Selected: ${selected}`, args);
+        },
+        onConfirm: (selected: number, scrollIndex?: number, args?: unknown, checked?: boolean) => {
+          Logger.debug(`Confirmed Selected: ${selected}`, args);
+        },
+        onCheck: (selected: number, scrollIndex?: number, args?: unknown, checked?: boolean) => {
+          Logger.debug(`Change Checked On Selected: ${selected} to ${checked}`, args);
         },
         options: [
-          {label: 'Spawn Adder', description: 'Super car', args: {model: 'adder'}},
-          {label: 'Spawn Police', description: 'Emergency vehicle', args: {model: 'police'}},
+          {label: 'Spawn Adder', description: 'Super car', args: {model: 'adder'}, close: true},
+          {label: 'Spawn Police', description: 'Emergency vehicle', args: {model: 'police'}, close: true},
           {label: 'Vehicle Color', values: ['Red', 'Blue', 'Green'], description: 'Select paint'},
           {label: 'Turbo Tuning', checked: true, description: 'Toggle turbo'}
         ]
@@ -166,10 +178,13 @@ export class Debug {
         0,
         {
           debug: true,
-          onEnter: () => Logger.debug('Entered Zone!'),
-          onExit: () => Logger.debug('Exited Zone!'),
-          inside: () => {
+          onEnter: () => {
+            Logger.debug('Entered Zone!');
             Interface.showTextUI('Inside Debug Zone');
+          },
+          onExit: () => {
+            Logger.debug('Exited Zone!');
+            Interface.hideTextUI();
           }
         }
       );

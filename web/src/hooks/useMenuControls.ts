@@ -1,16 +1,20 @@
-//
+// web/src/hooks/useMenuControls.tsx
 import { useEffect, useState } from 'react';
 import { fetchNui } from '../utils/fetchNui';
 import type { MenuItem } from '../typings';
+import {useUiStore} from "../store/uiStore";
 
 export const useMenuControls = (items: MenuItem[], active: boolean) => {
   const [selected, setSelected] = useState(0);
   const [scrollIndex, setScrollIndex] = useState(0);
 
+  const updateMenuOption = useUiStore((state) => state.menu.updateMenuOption);
+
   useEffect(() => {
     if (!active) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Prevent default scrolling for navigation keys
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Backspace'].includes(e.code)) {
         e.preventDefault();
       }
@@ -20,7 +24,6 @@ export const useMenuControls = (items: MenuItem[], active: boolean) => {
           const prevIndex = selected;
           const nextIndex = prevIndex <= 0 ? items.length - 1 : prevIndex - 1;
           setSelected(nextIndex);
-          // Reset scroll index to the default for the new item, or 0
           setScrollIndex(items[nextIndex]?.defaultIndex || 0);
           break;
         }
@@ -33,7 +36,6 @@ export const useMenuControls = (items: MenuItem[], active: boolean) => {
         }
         case 'ArrowLeft': {
           const currentItem = items[selected];
-          // Only scroll if the item has values
           if (currentItem?.values && currentItem.values.length > 0) {
             setScrollIndex((prev) => Math.max(0, prev - 1));
           }
@@ -46,9 +48,21 @@ export const useMenuControls = (items: MenuItem[], active: boolean) => {
           }
           break;
         }
-        case 'Enter':
-          void fetchNui('confirmSelected', { index: selected, scrollIndex });
+        case 'Enter': {
+          const currentItem = items[selected];
+
+          // 1. If it's a Checkbox, toggle it
+          if (currentItem && currentItem.checked !== undefined) {
+            const newCheckedState = !currentItem.checked;
+            updateMenuOption(selected, { checked: newCheckedState });
+            void fetchNui('changeChecked', { index: selected, checked: newCheckedState });
+          }
+          // 2. Otherwise, confirm selection
+          else {
+            void fetchNui('confirmSelected', { index: selected, scrollIndex });
+          }
           break;
+        }
         case 'Backspace':
         case 'Escape':
           void fetchNui('closeMenu');

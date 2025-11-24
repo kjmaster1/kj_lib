@@ -43,12 +43,12 @@ const LocaleCtx = createContext<LocaleContextValue | null>(null);
 
 const LocaleProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [locale, setLocale] = useState<Locale>({
-    language: '',
+    language: 'en',
     ui: {
-      cancel: '',
-      close: '',
-      confirm: '',
-      more: '',
+      cancel: 'Cancel',
+      close: 'Close',
+      confirm: 'Confirm',
+      more: 'More...',
     },
   });
 

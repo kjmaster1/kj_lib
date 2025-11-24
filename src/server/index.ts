@@ -18,7 +18,7 @@ export * from './zoneCreator';
 // 2. Initialization Logic
 // -----------------------------------------------------------------------------
 
-const IS_DEBUG = GetConvarInt('kj_lib:debug', 0) === 1;
+const IS_DEBUG = GetConvar('kj_lib_debug', 'false') === 'true';
 
 async function initialize() {
   try {

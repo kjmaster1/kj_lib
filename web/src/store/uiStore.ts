@@ -5,7 +5,7 @@ import type {
   AlertProps,
   ContextMenuProps,
   GameDifficulty,
-  InputProps,
+  InputProps, MenuItem,
   MenuSettings,
   ProgressState,
   RadialMenuItem,
@@ -22,6 +22,7 @@ interface MenuSlice {
   data: MenuSettings | null;
   setMenu: (data: MenuSettings) => void;
   closeMenu: () => void;
+  updateMenuOption: (index: number, changes: Partial<MenuItem>) => void;
 }
 
 interface InputSlice {
@@ -113,6 +114,28 @@ export const useUiStore = create<UiState>()(
         set((state) => ({ menu: { ...state.menu, visible: true, data } }), false, 'menu/set'),
       closeMenu: () =>
         set((state) => ({ menu: { ...state.menu, visible: false, data: null } }), false, 'menu/close'),
+      updateMenuOption: (index, changes) =>
+        set((state) => {
+          if (!state.menu.data) return {};
+
+          // Create a shallow copy of the items array
+          const newItems = [...(state.menu.data.items || [])];
+
+          // Update the specific item
+          if (newItems[index]) {
+            newItems[index] = { ...newItems[index], ...changes };
+          }
+
+          return {
+            menu: {
+              ...state.menu,
+              data: {
+                ...state.menu.data,
+                items: newItems,
+              },
+            },
+          };
+        }),
     },
 
     // --- Input (Dialog) ---

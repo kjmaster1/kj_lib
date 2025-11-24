@@ -40,9 +40,7 @@ export class Logger {
     if (options.minLevel !== undefined) {
       this.minLevel = options.minLevel;
     } else {
-      // If "kj_lib:debug" is 1, we show everything (DEBUG). Otherwise INFO.
-      // Note: This is checked once on construction.
-      const isDebug = GetConvarInt('kj_lib:debug', 0) === 1;
+      const isDebug = GetConvar('kj_lib_debug', 'false') === 'true';
       this.minLevel = isDebug ? LogLevel.DEBUG : LogLevel.INFO;
     }
   }

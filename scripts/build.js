@@ -1,6 +1,5 @@
 //@ts-check
-
-import { exists, exec, getFiles } from './utils.js';
+import { exists, exec } from './utils.js';
 import { createBuilder, createFxmanifest } from '@communityox/fx-utils';
 
 const watch = process.argv.includes('--watch');
@@ -38,11 +37,10 @@ createBuilder(
     },
   ],
   async (outfiles) => {
-    const files = await getFiles('dist/web');
     await createFxmanifest({
       client_scripts: [outfiles.client],
       server_scripts: [outfiles.server],
-      files: ['locales/*.json', ...files],
+      files: ['locales/*.json', 'dist/web/**/*'],
       dependencies: ['/server:13068', '/onesync'],
       metadata: {
         ui_page: 'dist/web/index.html',
@@ -50,6 +48,7 @@ createBuilder(
       },
     });
 
+    // Ensure the directory is built if not watching
     if (web && !watch) await exec("cd ./web && vite build");
   }
 );

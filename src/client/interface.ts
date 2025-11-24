@@ -52,13 +52,15 @@ class Nui {
 // =============================================================================
 
 type NuiAction =
+  | 'setLocale'
   | 'sendAlert'
   | 'openDialog'
   | 'showContext'
-  | 'hideContext'
+  | 'closeContext'
   | 'setMenu'
   | 'closeMenu'
   | 'openRadialMenu'
+  | 'closeRadialMenu'
   | 'notify'
   | 'textUi'
   | 'textUiHide'
@@ -121,6 +123,8 @@ export interface MenuOptions extends MenuItemBase {
   close?: boolean;
 }
 
+export type MenuChangeFunction = (selected: number, scrollIndex?: number, args?: unknown, checked?: boolean) => void;
+
 export interface MenuProps {
   id: string;
   title: string;
@@ -129,9 +133,10 @@ export interface MenuProps {
   disableInput?: boolean;
   canClose?: boolean;
   onClose?: (keyPressed?: 'Escape' | 'Backspace') => void;
-  onSelected?: (selected: number, scrollIndex?: number, args?: unknown) => void;
-  onSideScroll?: (selected: number, scrollIndex?: number, args?: unknown) => void;
-  onCheck?: (selected: number, checked: boolean, args?: unknown) => void;
+  onSelected?: MenuChangeFunction;
+  onSideScroll?: MenuChangeFunction;
+  onCheck?: MenuChangeFunction;
+  onConfirm?: MenuChangeFunction;
 }
 
 // --- Radial ---
@@ -310,10 +315,12 @@ class MenuService {
   private registerListCallbacks() {
     Nui.on('closeMenu', () => this.closeMenu());
 
-    Nui.on<[number, number, string?]>('changeSelected', (data) => {
+    Nui.on<{ index: number; scrollIndex?: number; checkValue?: string }>('changeSelected', (data) => {
       if (!this.activeMenu?.onSelected) return;
 
-      const [rawIndex, scrollIndex, checkValue] = data;
+      // Extract properties from Object
+      const { index: rawIndex, scrollIndex, checkValue } = data;
+
       const index = rawIndex + 1; // Lua 1-based index conversion
       const item = this.activeMenu.options[rawIndex];
       const args = item?.args || {};
@@ -328,30 +335,49 @@ class MenuService {
       this.activeMenu.onSelected(index, finalScroll, args);
     });
 
-    Nui.on<[number, number]>('confirmSelected', (data) => {
+    Nui.on<{ index: number; scrollIndex?: number }>('confirmSelected', (data) => {
       if (!this.activeMenu) return;
-      const [rawIndex, scrollIndex] = data;
-      const item = this.activeMenu.options[rawIndex];
+
+      // Extract properties from Object
+      const { index: rawIndex, scrollIndex } = data;
+
+      const menu = this.activeMenu;
+
+      const item = menu.options[rawIndex];
+      const args = item?.args || {};
+      const checked = item?.checked || false;
 
       if (item.close !== false) this.closeMenu();
 
-      this.activeMenu.onSelected?.(
+      menu.onConfirm?.(
         rawIndex + 1,
         scrollIndex !== undefined ? scrollIndex + 1 : undefined,
-        item.args
+        args,
+        checked
       );
     });
 
-    Nui.on<[number, number]>('changeIndex', ([selectedIndex, scrollIndex]) => {
+    Nui.on<{ index: number; scrollIndex: number }>('changeIndex', (data) => {
       if (!this.activeMenu?.onSideScroll) return;
+
+      // Extract properties from Object
+      const { index: selectedIndex, scrollIndex } = data;
+
       const item = this.activeMenu.options[selectedIndex];
       this.activeMenu.onSideScroll(selectedIndex + 1, scrollIndex + 1, item.args);
     });
 
-    Nui.on<[number, boolean]>('changeChecked', ([selectedIndex, checked]) => {
+    Nui.on<{ index: number; checked: boolean }>('changeChecked', (data) => {
       if (!this.activeMenu?.onCheck) return;
+
+      // Destructure from Object
+      const { index: selectedIndex, checked } = data;
+
       const item = this.activeMenu.options[selectedIndex];
-      this.activeMenu.onCheck(selectedIndex + 1, checked, item.args);
+      const args = item?.args || {};
+
+      // Call the client callback
+      this.activeMenu.onCheck(selectedIndex + 1, undefined, args, checked);
     });
   }
 
@@ -407,7 +433,7 @@ class MenuService {
     }
     this.activeContext = null;
     Nui.focus(false, false);
-    Nui.send('hideContext');
+    Nui.send('closeContext');
   }
 
   public registerMenu(menu: MenuProps) {
@@ -463,7 +489,7 @@ class MenuService {
   public closeRadial() {
     this.activeRadial = null;
     Nui.focus(false, false);
-    Nui.send('openRadialMenu', false);
+    Nui.send('closeRadialMenu', false);
   }
 }
 
@@ -528,7 +554,20 @@ const Menus = new MenuService();
 const Hud = new HudService();
 
 // Init Base NUI Handlers
-Nui.on('init', () => Logger.info('UI Initialized'));
+Nui.on('init', () => {
+  Logger.info('UI Initialized');
+
+  Nui.send('setLocale', {
+    language: 'en',
+    ui: {
+      cancel: 'Cancel',
+      close: 'Close',
+      confirm: 'Confirm',
+      more: 'More...'
+    }
+  });
+
+});
 Nui.on('getConfig', () => ({
   primaryColor: GetConvar('kj_lib:primaryColor', 'blue'),
   primaryShade: GetConvarInt('kj_lib:primaryShade', 6)

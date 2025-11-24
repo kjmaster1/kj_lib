@@ -34,7 +34,7 @@ const ThemeWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   const mergedTheme = { ...theme, ...config };
 
   return (
-    <MantineProvider withGlobalStyles withNormalizeCSS theme={mergedTheme}>
+    <MantineProvider theme={mergedTheme}>
       {children}
     </MantineProvider>
   );
